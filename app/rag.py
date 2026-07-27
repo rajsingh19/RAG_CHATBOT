@@ -3,13 +3,13 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from pinecone import Pinecone, ServerlessSpec
 
-# Load environment variables from .env file
+# Load environment variables from the .env file
 load_dotenv()
 
-# Print loaded keys for debugging
-print("Loaded API keys from environment:", [k for k in ["GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"] if k in os.environ])
-
+# Print loaded keys to debug environment configuration
+print("Loaded API keys from environment:", [k for k in ["GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "PINECONE_API_KEY"] if k in os.environ])
 
 def process_pdf_and_embed(file_path: str):
     """
@@ -19,7 +19,7 @@ def process_pdf_and_embed(file_path: str):
     if not os.path.exists(file_path):
         print(f"Error: File not found at '{file_path}'.")
         print("Please ensure your PDF is placed in the data/ directory and matches the filename.")
-        return
+        return None
 
     # 1. Load PDF
     print(f"Loading PDF from: {file_path}...")
@@ -37,13 +37,12 @@ def process_pdf_and_embed(file_path: str):
 
     if not chunks:
         print("No chunks to embed.")
-        return
+        return None
 
     # 3. Generate Embeddings
     print("Generating embeddings for all chunks (this requires GOOGLE_API_KEY in .env)...")
     
-    # Initialize GoogleGenerativeAIEmbeddings (reads GOOGLE_API_KEY from env automatically)
-    # Using the standard 'models/gemini-embedding-2' model
+    # Initialize GoogleGenerativeAIEmbeddings
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
     
     # Extract text content from each chunk (limit to 50 to avoid Gemini Free Tier 100 RPM rate limit)
@@ -59,12 +58,59 @@ def process_pdf_and_embed(file_path: str):
         dimension = len(vector_list[0])
         print(f"Embedding dimension (vector length): {dimension}")
         print(f"First embedding length: {len(vector_list[0])}")
-        # Print a small sample of the first vector to prove it's a list of floats
         print(f"First embedding sample (first 5 values): {vector_list[0][:5]}")
+        return dimension
     else:
         print("No embeddings were generated.")
+        return None
+
+def setup_pinecone_index(index_name: str, dimension: int):
+    """
+    Connects to Pinecone and creates a serverless index if it doesn't already exist.
+    """
+    # Retrieve the Pinecone API key from environment variables
+    api_key = os.environ.get("PINECONE_API_KEY")
+    
+    # Validate that the API key has been set and isn't the placeholder
+    if not api_key or api_key == "your_pinecone_api_key_here":
+        print("Error: Please set your PINECONE_API_KEY in the .env file.")
+        return
+
+    # 1. Initialize the official Pinecone client with your API key
+    pc = Pinecone(api_key=api_key)
+    
+    print(f"Connecting to Pinecone and checking index '{index_name}'...")
+    
+    # 2. Fetch the list of existing index names in your Pinecone account
+    existing_indexes = [idx.name for idx in pc.list_indexes()]
+    
+    # 3. If the index does not already exist, create it
+    if index_name not in existing_indexes:
+        print(f"Index '{index_name}' not found. Creating a new one...")
+        
+        # Create a new serverless index with cosine similarity metric
+        pc.create_index(
+            name=index_name,
+            dimension=dimension,
+            metric="cosine",  # Requirements: Use cosine similarity
+            spec=ServerlessSpec(
+                cloud="aws",
+                region="us-east-1"  # Standard region for the Pinecone free tier
+            )
+        )
+        print(f"Successfully created index '{index_name}'!")
+    else:
+        print(f"Index '{index_name}' already exists.")
 
 if __name__ == "__main__":
     # Path to the PDF file in the data folder
     pdf_path = "data/agentic_ai.pdf"
-    process_pdf_and_embed(pdf_path)
+    
+    # Process PDF and get the embedding dimension
+    dimension = process_pdf_and_embed(pdf_path)
+    
+    if dimension:
+        # Define index name
+        index_name = "rag-chatbot-index"
+        # Connect to Pinecone and set up the index
+        setup_pinecone_index(index_name, dimension)
