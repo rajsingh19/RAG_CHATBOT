@@ -138,20 +138,104 @@ def upload_vectors_to_pinecone(pc: Pinecone, index_name: str, chunks: list, vect
         
     print(f"Upload complete! Total uploaded vectors: {len(vectors_to_upsert)}")
 
+def query_rag(query: str, index_name: str):
+    """
+    Embeds a search query, retrieves top 3 matching chunks from Pinecone,
+    and prints similarity scores along with matching content text.
+    """
+    # 1. Retrieve the Pinecone API key
+    api_key = os.environ.get("PINECONE_API_KEY")
+    if not api_key or api_key == "your_pinecone_api_key_here":
+        print("Error: Please set your PINECONE_API_KEY in the .env file.")
+        return
+
+    # 2. Initialize Pinecone client and connect to the index
+    pc = Pinecone(api_key=api_key)
+    index = pc.Index(index_name)
+    
+    # 3. Generate embedding for the search query (must use the same model as ingestion)
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
+    print(f"\nGenerating embedding for query: '{query}'...")
+    query_vector = embeddings.embed_query(query)
+    
+    # 4. Search Pinecone for top 3 matching vectors
+    print("Searching Pinecone index...")
+    results = index.query(
+        vector=query_vector,
+        top_k=3,
+        include_metadata=True
+    )
+    
+    # 5. Print similarity scores and retrieved chunks
+    print("\n" + "="*40)
+    print(f"TOP 3 RETRIEVED CHUNKS FOR QUERY: '{query}'")
+    print("="*40)
+    
+    matches = results.get("matches", [])
+    if not matches:
+        print("No matching documents found in Pinecone index.")
+        
+    for i, match in enumerate(matches):
+        score = match.get("score", 0.0)
+        metadata = match.get("metadata", {})
+        text = metadata.get("text", "No text content available.")
+        page = metadata.get("page", "Unknown")
+        
+        print(f"\n[{i+1}] Similarity Score: {score:.4f} (Page: {page})")
+        print(f"Content Preview:\n{text}")
+        print("-" * 40)
+
 if __name__ == "__main__":
-    # Path to the PDF file
+    index_name = "rag-chatbot-index"
     pdf_path = "data/agentic_ai.pdf"
     
-    # 1. Process PDF and generate all embeddings (using rate-limit safety)
-    chunks, vector_list = process_pdf_and_embed(pdf_path)
+    # Connect to Pinecone and check status
+    api_key = os.environ.get("PINECONE_API_KEY")
+    if not api_key or api_key == "your_pinecone_api_key_here":
+        print("Error: Please set your PINECONE_API_KEY in the .env file.")
+        exit(1)
+        
+    pc = Pinecone(api_key=api_key)
     
-    if chunks and vector_list:
-        dimension = len(vector_list[0])
-        index_name = "rag-chatbot-index"
-        
-        # 2. Get or create Pinecone index
-        pc = setup_pinecone_index(index_name, dimension)
-        
-        if pc:
-            # 3. Upload embeddings to Pinecone
-            upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
+    # Retrieve existing indexes
+    existing_indexes = [idx.name for idx in pc.list_indexes()]
+    
+    # If the index does not exist, run the setup and ingestion
+    if index_name not in existing_indexes:
+        print(f"Index '{index_name}' not found. Running ingestion pipeline...")
+        chunks, vector_list = process_pdf_and_embed(pdf_path)
+        if chunks and vector_list:
+            dimension = len(vector_list[0])
+            pc = setup_pinecone_index(index_name, dimension)
+            if pc:
+                upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
+    else:
+        # Index exists, check if it's empty
+        index = pc.Index(index_name)
+        stats = index.describe_index_stats()
+        if stats.get("total_vector_count", 0) == 0:
+            print(f"Index '{index_name}' exists but is empty. Running ingestion pipeline...")
+            chunks, vector_list = process_pdf_and_embed(pdf_path)
+            if chunks and vector_list:
+                upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
+        else:
+            print(f"Index '{index_name}' is already populated with {stats['total_vector_count']} vectors.")
+
+    # Start the interactive querying loop
+    print("\nStarting RAG Query & Retrieval Testing Interface. Type 'exit' to quit.")
+    
+    while True:
+        try:
+            query = input("\nEnter search query: ")
+            if query.strip().lower() == "exit":
+                print("Exiting search interface.")
+                break
+            if not query.strip():
+                continue
+            
+            # Execute retrieval search and display matches
+            query_rag(query.strip(), index_name)
+            
+        except KeyboardInterrupt:
+            print("\nExiting search interface.")
+            break
