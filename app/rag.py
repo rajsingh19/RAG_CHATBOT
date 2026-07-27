@@ -1,10 +1,12 @@
 import os
 import time
+from typing import TypedDict
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from pinecone import Pinecone, ServerlessSpec
+from langgraph.graph import StateGraph, START, END
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -138,75 +140,103 @@ def upload_vectors_to_pinecone(pc: Pinecone, index_name: str, chunks: list, vect
         
     print(f"Upload complete! Total uploaded vectors: {len(vectors_to_upsert)}")
 
-def query_rag(query: str, index_name: str):
+
+# Define the state of the graph
+class GraphState(TypedDict):
+    question: str
+    context: str
+    answer: str
+
+
+def compile_rag_graph(index_name: str) -> StateGraph:
     """
-    Embeds a search query, retrieves top 3 matching chunks from Pinecone,
-    and uses ChatGoogleGenerativeAI to generate a strictly context-grounded response.
+    Builds and compiles the RAG StateGraph workflow.
+    Graph flow: START -> retrieve -> generate -> END
     """
-    # 1. Retrieve the Pinecone API key
+    # Retrieve Pinecone API Key
     api_key = os.environ.get("PINECONE_API_KEY")
-    if not api_key or api_key == "your_pinecone_api_key_here":
-        print("Error: Please set your PINECONE_API_KEY in the .env file.")
-        return
-
-    # 2. Initialize Pinecone client and connect to the index
     pc = Pinecone(api_key=api_key)
-    index = pc.Index(index_name)
-    
-    # 3. Generate embedding for the search query
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    print(f"\nGenerating embedding for query: '{query}'...")
-    query_vector = embeddings.embed_query(query)
-    
-    # 4. Search Pinecone for top 3 matching vectors
-    print("Searching Pinecone index...")
-    results = index.query(
-        vector=query_vector,
-        top_k=3,
-        include_metadata=True
-    )
-    
-    matches = results.get("matches", [])
-    if not matches:
-        print("No matching documents found in Pinecone index.")
-        return
 
-    # 5. Extract matching texts for context
-    context_chunks = []
-    for match in matches:
-        text = match.get("metadata", {}).get("text", "")
-        if text:
-            context_chunks.append(text)
-    
-    context = "\n\n".join(context_chunks)
+    # Node 1: Retrieve matching chunks
+    def retrieve_node(state: GraphState) -> dict:
+        query = state["question"]
+        print("-> [Node: Retrieve] Searching Pinecone vector index...")
+        
+        index = pc.Index(index_name)
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
+        query_vector = embeddings.embed_query(query)
+        results = index.query(vector=query_vector, top_k=3, include_metadata=True)
+        
+        matches = results.get("matches", [])
+        context_chunks = [
+            match.get("metadata", {}).get("text", "") 
+            for match in matches 
+            if match.get("metadata", {}).get("text")
+        ]
+        context = "\n\n".join(context_chunks)
+        
+        # Returns the updated key which will be merged into GraphState
+        return {"context": context}
 
-    # 6. Initialize ChatGoogleGenerativeAI to generate the answer
-    # Using gemini-2.5-flash with temperature 0.0 for deterministic answers
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
+    # Node 2: Generate response
+    def generate_node(state: GraphState) -> dict:
+        query = state["question"]
+        context = state["context"]
+        print("-> [Node: Generate] Grounding and generating answer with Gemini LLM...")
+        
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
+        
+        system_instruction = (
+            "You are a helpful assistant. You must answer the user's question ONLY using the provided context. "
+            "Do not add any external knowledge or make assumptions. "
+            "If the answer is not explicitly present in the provided context, you must reply exactly with: "
+            "\"I could not find this information in the provided document.\"\n"
+            "Return only the answer."
+        )
+        user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
+        
+        response = llm.invoke([
+            ("system", system_instruction),
+            ("human", user_prompt)
+        ])
+        
+        # Returns the updated key which will be merged into GraphState
+        return {"answer": response.content}
+
+    # Build the StateGraph workflow
+    workflow = StateGraph(GraphState)
     
-    # Construct strictly grounded system and user instructions
-    system_instruction = (
-        "You are a helpful assistant. You must answer the user's question ONLY using the provided context. "
-        "Do not add any external knowledge or make assumptions. "
-        "If the answer is not explicitly present in the provided context, you must reply exactly with: "
-        "\"I could not find this information in the provided document.\"\n"
-        "Return only the answer."
-    )
+    # Register the nodes
+    workflow.add_node("retrieve", retrieve_node)
+    workflow.add_node("generate", generate_node)
     
-    user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
+    # Establish simple linear transitions (START -> retrieve -> generate -> END)
+    workflow.add_edge(START, "retrieve")
+    workflow.add_edge("retrieve", "generate")
+    workflow.add_edge("generate", END)
     
-    # 7. Call LLM to generate answer
-    print("Generating answer using Gemini LLM...")
-    response = llm.invoke([
-        ("system", system_instruction),
-        ("human", user_prompt)
-    ])
+    # Compile the graph
+    return workflow.compile()
+
+
+def query_rag_with_graph(query: str, index_name: str):
+    """
+    Invokes the compiled StateGraph workflow and prints the final grounded answer.
+    """
+    # Compile the graph
+    app = compile_rag_graph(index_name)
+    
+    print(f"\nInvoking LangGraph for query: '{query}'...")
+    
+    # Execute the graph with the initial state
+    result = app.invoke({"question": query})
     
     print("\n" + "="*40)
-    print("ANSWER:")
+    print("ANSWER (via LangGraph):")
     print("="*40)
-    print(response.content)
+    print(result.get("answer", "No answer generated."))
     print("="*40)
+
 
 if __name__ == "__main__":
     index_name = "rag-chatbot-index"
@@ -256,8 +286,8 @@ if __name__ == "__main__":
             if not query.strip():
                 continue
             
-            # Execute retrieval search and display matches
-            query_rag(query.strip(), index_name)
+            # Execute search through the LangGraph RAG workflow
+            query_rag_with_graph(query.strip(), index_name)
             
         except KeyboardInterrupt:
             print("\nExiting search interface.")
