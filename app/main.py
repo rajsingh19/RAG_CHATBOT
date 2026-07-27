@@ -16,18 +16,23 @@ graph_app = compile_rag_graph(INDEX_NAME)
 class ChatRequest(BaseModel):
     question: str
 
+# Represents each retrieved chunk with text and similarity score
+class ContextChunk(BaseModel):
+    text: str
+    score: float
+
 # Pydantic schema for response structure matching requested JSON
 class ChatResponse(BaseModel):
     answer: str
-    context: list[str]
-    scores: list[float]
+    context: list[ContextChunk]
+    confidence: float
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
     HTTP POST Endpoint that accepts a question, runs the LangGraph RAG pipeline,
-    and returns the grounded LLM answer along with retrieved text context chunks
-    and their similarity scores from Pinecone.
+    and returns the grounded LLM answer, the text chunks bundled with their individual
+    similarity scores, and a confidence score based on the highest similarity.
     """
     # Reject empty questions
     if not request.question.strip():
@@ -37,11 +42,17 @@ async def chat_endpoint(request: ChatRequest):
         # Run the LangGraph workflow synchronously with the query state
         result = graph_app.invoke({"question": request.question.strip()})
         
+        # Format the context chunks into ContextChunk model schemas
+        context_chunks = [
+            ContextChunk(text=chunk["text"], score=chunk["score"])
+            for chunk in result.get("retrieved_chunks", [])
+        ]
+        
         # Build and return the validated response schema
         return ChatResponse(
             answer=result.get("answer", "No answer generated."),
-            context=result.get("retrieved_chunks", []),
-            scores=result.get("retrieved_scores", [])
+            context=context_chunks,
+            confidence=result.get("confidence", 0.0)
         )
     except Exception as e:
         # Catch unexpected pipeline exceptions and return them as standard server errors

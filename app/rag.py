@@ -146,8 +146,8 @@ class GraphState(TypedDict):
     question: str
     context: str
     answer: str
-    retrieved_chunks: list
-    retrieved_scores: list
+    retrieved_chunks: list  # List of dicts: [{"text": str, "score": float}]
+    confidence: float       # Highest similarity score
 
 
 def compile_rag_graph(index_name: str) -> StateGraph:
@@ -170,19 +170,25 @@ def compile_rag_graph(index_name: str) -> StateGraph:
         results = index.query(vector=query_vector, top_k=3, include_metadata=True)
         
         matches = results.get("matches", [])
-        context_chunks = [
-            match.get("metadata", {}).get("text", "") 
-            for match in matches 
-            if match.get("metadata", {}).get("text")
-        ]
-        context = "\n\n".join(context_chunks)
-        scores = [match.get("score", 0.0) for match in matches]
+        retrieved_chunks = []
+        scores = []
+        for match in matches:
+            text = match.get("metadata", {}).get("text", "")
+            score = match.get("score", 0.0)
+            if text:
+                retrieved_chunks.append({"text": text, "score": score})
+                scores.append(score)
+        
+        context = "\n\n".join([chunk["text"] for chunk in retrieved_chunks])
+        
+        # Confidence score is the highest similarity score (first match since results are sorted desc)
+        confidence = scores[0] if scores else 0.0
         
         # Returns the updated keys which will be merged into GraphState
         return {
             "context": context,
-            "retrieved_chunks": context_chunks,
-            "retrieved_scores": scores
+            "retrieved_chunks": retrieved_chunks,
+            "confidence": confidence
         }
 
     # Node 2: Generate response
