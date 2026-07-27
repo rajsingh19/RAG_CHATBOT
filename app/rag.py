@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -13,13 +14,14 @@ print("Loaded API keys from environment:", [k for k in ["GOOGLE_API_KEY", "GEMIN
 
 def process_pdf_and_embed(file_path: str):
     """
-    Loads a PDF, splits its content into chunks, and generates embeddings for all chunks using Gemini API.
+    Loads a PDF, splits its content into chunks, and generates embeddings for ALL chunks.
+    Uses rate-limit-safe batching (50 chunks per batch) to avoid Gemini Free Tier 429 errors.
     """
     # Check if the PDF file exists before loading
     if not os.path.exists(file_path):
         print(f"Error: File not found at '{file_path}'.")
         print("Please ensure your PDF is placed in the data/ directory and matches the filename.")
-        return None
+        return None, None
 
     # 1. Load PDF
     print(f"Loading PDF from: {file_path}...")
@@ -37,80 +39,119 @@ def process_pdf_and_embed(file_path: str):
 
     if not chunks:
         print("No chunks to embed.")
-        return None
+        return None, None
 
     # 3. Generate Embeddings
-    print("Generating embeddings for all chunks (this requires GOOGLE_API_KEY in .env)...")
+    print("Generating embeddings for all chunks...")
     
     # Initialize GoogleGenerativeAIEmbeddings
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
     
-    # Extract text content from each chunk (limit to 50 to avoid Gemini Free Tier 100 RPM rate limit)
-    texts = [chunk.page_content for chunk in chunks][:50]
-    print(f"Embedding the first {len(texts)} chunks to stay under Gemini free-tier rate limits (100 RPM)...")
-    
-    # Generate the embeddings
-    vector_list = embeddings.embed_documents(texts)
-    print(f"Successfully generated {len(vector_list)} embeddings.")
+    # Generate embeddings in rate-limit-safe batches of 50
+    vector_list = []
+    batch_size = 50
+    for i in range(0, len(chunks), batch_size):
+        batch_chunks = chunks[i : i + batch_size]
+        batch_texts = [chunk.page_content for chunk in batch_chunks]
+        
+        print(f"Embedding chunks {i + 1} to {min(i + batch_size, len(chunks))} of {len(chunks)}...")
+        batch_vectors = embeddings.embed_documents(batch_texts)
+        vector_list.extend(batch_vectors)
+        
+        # Sleep to stay under the Free Tier rate limit of 100 requests per minute
+        if i + batch_size < len(chunks):
+            print("Sleeping for 15 seconds to avoid Gemini rate limits...")
+            time.sleep(15)
 
-    # Print validation information
+    print(f"Successfully generated {len(vector_list)} embeddings.")
+    
     if vector_list:
         dimension = len(vector_list[0])
         print(f"Embedding dimension (vector length): {dimension}")
-        print(f"First embedding length: {len(vector_list[0])}")
-        print(f"First embedding sample (first 5 values): {vector_list[0][:5]}")
-        return dimension
+        return chunks, vector_list
     else:
         print("No embeddings were generated.")
-        return None
+        return None, None
 
 def setup_pinecone_index(index_name: str, dimension: int):
     """
     Connects to Pinecone and creates a serverless index if it doesn't already exist.
     """
-    # Retrieve the Pinecone API key from environment variables
+    # Retrieve the Pinecone API key
     api_key = os.environ.get("PINECONE_API_KEY")
-    
-    # Validate that the API key has been set and isn't the placeholder
     if not api_key or api_key == "your_pinecone_api_key_here":
         print("Error: Please set your PINECONE_API_KEY in the .env file.")
-        return
+        return None
 
-    # 1. Initialize the official Pinecone client with your API key
+    # Initialize client
     pc = Pinecone(api_key=api_key)
     
     print(f"Connecting to Pinecone and checking index '{index_name}'...")
-    
-    # 2. Fetch the list of existing index names in your Pinecone account
     existing_indexes = [idx.name for idx in pc.list_indexes()]
     
-    # 3. If the index does not already exist, create it
     if index_name not in existing_indexes:
         print(f"Index '{index_name}' not found. Creating a new one...")
-        
-        # Create a new serverless index with cosine similarity metric
         pc.create_index(
             name=index_name,
             dimension=dimension,
-            metric="cosine",  # Requirements: Use cosine similarity
+            metric="cosine",
             spec=ServerlessSpec(
                 cloud="aws",
-                region="us-east-1"  # Standard region for the Pinecone free tier
+                region="us-east-1"
             )
         )
         print(f"Successfully created index '{index_name}'!")
     else:
         print(f"Index '{index_name}' already exists.")
+        
+    return pc
+
+def upload_vectors_to_pinecone(pc: Pinecone, index_name: str, chunks: list, vector_list: list):
+    """
+    Uploads all chunk embeddings to Pinecone with chunk text stored in metadata.
+    """
+    # Connect to the specific Pinecone index
+    index = pc.Index(index_name)
+    
+    # Prepare the vectors payload with simple numeric IDs and metadata
+    vectors_to_upsert = []
+    for idx, (chunk, vector) in enumerate(zip(chunks, vector_list)):
+        # Numeric ID is the index converted to a string
+        vector_id = str(idx)
+        
+        # Metadata contains the text content of the chunk and its page number
+        metadata = {
+            "text": chunk.page_content,
+            "page": chunk.metadata.get("page", 0)
+        }
+        
+        vectors_to_upsert.append((vector_id, vector, metadata))
+        
+    print(f"Uploading {len(vectors_to_upsert)} vectors to index '{index_name}'...")
+    
+    # Upsert vectors in batches to print progress
+    upsert_batch_size = 50
+    for i in range(0, len(vectors_to_upsert), upsert_batch_size):
+        batch = vectors_to_upsert[i : i + upsert_batch_size]
+        index.upsert(vectors=batch)
+        print(f"Uploaded vectors {i + 1} to {min(i + upsert_batch_size, len(vectors_to_upsert))}...")
+        
+    print(f"Upload complete! Total uploaded vectors: {len(vectors_to_upsert)}")
 
 if __name__ == "__main__":
-    # Path to the PDF file in the data folder
+    # Path to the PDF file
     pdf_path = "data/agentic_ai.pdf"
     
-    # Process PDF and get the embedding dimension
-    dimension = process_pdf_and_embed(pdf_path)
+    # 1. Process PDF and generate all embeddings (using rate-limit safety)
+    chunks, vector_list = process_pdf_and_embed(pdf_path)
     
-    if dimension:
-        # Define index name
+    if chunks and vector_list:
+        dimension = len(vector_list[0])
         index_name = "rag-chatbot-index"
-        # Connect to Pinecone and set up the index
-        setup_pinecone_index(index_name, dimension)
+        
+        # 2. Get or create Pinecone index
+        pc = setup_pinecone_index(index_name, dimension)
+        
+        if pc:
+            # 3. Upload embeddings to Pinecone
+            upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
