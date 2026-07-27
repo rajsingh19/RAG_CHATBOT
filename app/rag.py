@@ -3,7 +3,7 @@ import time
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from pinecone import Pinecone, ServerlessSpec
 
 # Load environment variables from the .env file
@@ -141,7 +141,7 @@ def upload_vectors_to_pinecone(pc: Pinecone, index_name: str, chunks: list, vect
 def query_rag(query: str, index_name: str):
     """
     Embeds a search query, retrieves top 3 matching chunks from Pinecone,
-    and prints similarity scores along with matching content text.
+    and uses ChatGoogleGenerativeAI to generate a strictly context-grounded response.
     """
     # 1. Retrieve the Pinecone API key
     api_key = os.environ.get("PINECONE_API_KEY")
@@ -153,7 +153,7 @@ def query_rag(query: str, index_name: str):
     pc = Pinecone(api_key=api_key)
     index = pc.Index(index_name)
     
-    # 3. Generate embedding for the search query (must use the same model as ingestion)
+    # 3. Generate embedding for the search query
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
     print(f"\nGenerating embedding for query: '{query}'...")
     query_vector = embeddings.embed_query(query)
@@ -166,24 +166,47 @@ def query_rag(query: str, index_name: str):
         include_metadata=True
     )
     
-    # 5. Print similarity scores and retrieved chunks
-    print("\n" + "="*40)
-    print(f"TOP 3 RETRIEVED CHUNKS FOR QUERY: '{query}'")
-    print("="*40)
-    
     matches = results.get("matches", [])
     if not matches:
         print("No matching documents found in Pinecone index.")
-        
-    for i, match in enumerate(matches):
-        score = match.get("score", 0.0)
-        metadata = match.get("metadata", {})
-        text = metadata.get("text", "No text content available.")
-        page = metadata.get("page", "Unknown")
-        
-        print(f"\n[{i+1}] Similarity Score: {score:.4f} (Page: {page})")
-        print(f"Content Preview:\n{text}")
-        print("-" * 40)
+        return
+
+    # 5. Extract matching texts for context
+    context_chunks = []
+    for match in matches:
+        text = match.get("metadata", {}).get("text", "")
+        if text:
+            context_chunks.append(text)
+    
+    context = "\n\n".join(context_chunks)
+
+    # 6. Initialize ChatGoogleGenerativeAI to generate the answer
+    # Using gemini-2.5-flash with temperature 0.0 for deterministic answers
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
+    
+    # Construct strictly grounded system and user instructions
+    system_instruction = (
+        "You are a helpful assistant. You must answer the user's question ONLY using the provided context. "
+        "Do not add any external knowledge or make assumptions. "
+        "If the answer is not explicitly present in the provided context, you must reply exactly with: "
+        "\"I could not find this information in the provided document.\"\n"
+        "Return only the answer."
+    )
+    
+    user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
+    
+    # 7. Call LLM to generate answer
+    print("Generating answer using Gemini LLM...")
+    response = llm.invoke([
+        ("system", system_instruction),
+        ("human", user_prompt)
+    ])
+    
+    print("\n" + "="*40)
+    print("ANSWER:")
+    print("="*40)
+    print(response.content)
+    print("="*40)
 
 if __name__ == "__main__":
     index_name = "rag-chatbot-index"
