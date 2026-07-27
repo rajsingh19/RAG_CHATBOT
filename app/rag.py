@@ -146,6 +146,8 @@ class GraphState(TypedDict):
     question: str
     context: str
     answer: str
+    retrieved_chunks: list
+    retrieved_scores: list
 
 
 def compile_rag_graph(index_name: str) -> StateGraph:
@@ -174,9 +176,14 @@ def compile_rag_graph(index_name: str) -> StateGraph:
             if match.get("metadata", {}).get("text")
         ]
         context = "\n\n".join(context_chunks)
+        scores = [match.get("score", 0.0) for match in matches]
         
-        # Returns the updated key which will be merged into GraphState
-        return {"context": context}
+        # Returns the updated keys which will be merged into GraphState
+        return {
+            "context": context,
+            "retrieved_chunks": context_chunks,
+            "retrieved_scores": scores
+        }
 
     # Node 2: Generate response
     def generate_node(state: GraphState) -> dict:
