@@ -8,48 +8,45 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGener
 from pinecone import Pinecone, ServerlessSpec
 from langgraph.graph import StateGraph, START, END
 
-# Load environment variables from the .env file
+# 1. Load environment variables from the .env file
 load_dotenv()
 
-# Print loaded keys to debug environment configuration
-print("Loaded API keys from environment:", [k for k in ["GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY", "PINECONE_API_KEY"] if k in os.environ])
+# 2. Initialize global API keys and clients
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
+
+# Initialize Pinecone client once globally
+pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
+
+# Initialize Gemini Embeddings model globally (reused for both ingestion and retrieval)
+embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2") if GOOGLE_API_KEY else None
+
 
 def process_pdf_and_embed(file_path: str):
     """
     Loads a PDF, splits its content into chunks, and generates embeddings for ALL chunks.
     Uses rate-limit-safe batching (50 chunks per batch) to avoid Gemini Free Tier 429 errors.
     """
-    # Check if the PDF file exists before loading
     if not os.path.exists(file_path):
         print(f"Error: File not found at '{file_path}'.")
-        print("Please ensure your PDF is placed in the data/ directory and matches the filename.")
         return None, None
 
-    # 1. Load PDF
+    # Load PDF using PyPDFLoader
     print(f"Loading PDF from: {file_path}...")
     loader = PyPDFLoader(file_path)
     pages = loader.load()
     print(f"Successfully loaded {len(pages)} pages.")
 
-    # 2. Split PDF into chunks
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
-    )
+    # Split PDF text into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = text_splitter.split_documents(pages)
     print(f"Successfully split into {len(chunks)} chunks.")
 
     if not chunks:
-        print("No chunks to embed.")
         return None, None
 
-    # 3. Generate Embeddings
+    # Generate Embeddings in rate-limit-safe batches of 50
     print("Generating embeddings for all chunks...")
-    
-    # Initialize GoogleGenerativeAIEmbeddings
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
-    
-    # Generate embeddings in rate-limit-safe batches of 50
     vector_list = []
     batch_size = 50
     for i in range(0, len(chunks), batch_size):
@@ -60,34 +57,23 @@ def process_pdf_and_embed(file_path: str):
         batch_vectors = embeddings.embed_documents(batch_texts)
         vector_list.extend(batch_vectors)
         
-        # Sleep to stay under the Free Tier rate limit of 100 requests per minute
+        # 15s sleep to stay under Gemini free-tier rate limits (100 requests per minute)
         if i + batch_size < len(chunks):
             print("Sleeping for 15 seconds to avoid Gemini rate limits...")
             time.sleep(15)
 
     print(f"Successfully generated {len(vector_list)} embeddings.")
-    
-    if vector_list:
-        dimension = len(vector_list[0])
-        print(f"Embedding dimension (vector length): {dimension}")
-        return chunks, vector_list
-    else:
-        print("No embeddings were generated.")
-        return None, None
+    return chunks, vector_list
+
 
 def setup_pinecone_index(index_name: str, dimension: int):
     """
-    Connects to Pinecone and creates a serverless index if it doesn't already exist.
+    Checks if Pinecone index exists, and creates a serverless index if it doesn't.
     """
-    # Retrieve the Pinecone API key
-    api_key = os.environ.get("PINECONE_API_KEY")
-    if not api_key or api_key == "your_pinecone_api_key_here":
-        print("Error: Please set your PINECONE_API_KEY in the .env file.")
+    if not pc:
+        print("Error: Pinecone client not initialized. Check PINECONE_API_KEY.")
         return None
 
-    # Initialize client
-    pc = Pinecone(api_key=api_key)
-    
     print(f"Connecting to Pinecone and checking index '{index_name}'...")
     existing_indexes = [idx.name for idx in pc.list_indexes()]
     
@@ -97,10 +83,7 @@ def setup_pinecone_index(index_name: str, dimension: int):
             name=index_name,
             dimension=dimension,
             metric="cosine",
-            spec=ServerlessSpec(
-                cloud="aws",
-                region="us-east-1"
-            )
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
         )
         print(f"Successfully created index '{index_name}'!")
     else:
@@ -108,40 +91,38 @@ def setup_pinecone_index(index_name: str, dimension: int):
         
     return pc
 
-def upload_vectors_to_pinecone(pc: Pinecone, index_name: str, chunks: list, vector_list: list):
+
+def upload_vectors_to_pinecone(index_name: str, chunks: list, vector_list: list):
     """
-    Uploads all chunk embeddings to Pinecone with chunk text stored in metadata.
+    Uploads all chunk embeddings to Pinecone, storing the text content in metadata.
     """
-    # Connect to the specific Pinecone index
+    if not pc:
+        print("Error: Pinecone client not initialized.")
+        return
+
     index = pc.Index(index_name)
-    
-    # Prepare the vectors payload with simple numeric IDs and metadata
     vectors_to_upsert = []
+    
     for idx, (chunk, vector) in enumerate(zip(chunks, vector_list)):
-        # Numeric ID is the index converted to a string
-        vector_id = str(idx)
-        
-        # Metadata contains the text content of the chunk and its page number
-        metadata = {
-            "text": chunk.page_content,
-            "page": chunk.metadata.get("page", 0)
-        }
-        
-        vectors_to_upsert.append((vector_id, vector, metadata))
+        vectors_to_upsert.append((
+            str(idx),  # Simple numeric ID
+            vector,    # Float embedding values
+            {"text": chunk.page_content, "page": chunk.metadata.get("page", 0)}  # Metadata
+        ))
         
     print(f"Uploading {len(vectors_to_upsert)} vectors to index '{index_name}'...")
     
-    # Upsert vectors in batches to print progress
+    # Upsert in batches of 50 to log progress
     upsert_batch_size = 50
     for i in range(0, len(vectors_to_upsert), upsert_batch_size):
         batch = vectors_to_upsert[i : i + upsert_batch_size]
         index.upsert(vectors=batch)
         print(f"Uploaded vectors {i + 1} to {min(i + upsert_batch_size, len(vectors_to_upsert))}...")
         
-    print(f"Upload complete! Total uploaded vectors: {len(vectors_to_upsert)}")
+    print("Upload complete!")
 
 
-# Define the state of the graph
+# Define the state variables shared across our LangGraph nodes
 class GraphState(TypedDict):
     question: str
     context: str
@@ -155,43 +136,119 @@ def compile_rag_graph(index_name: str) -> StateGraph:
     Builds and compiles the RAG StateGraph workflow.
     Graph flow: START -> retrieve -> generate -> END
     """
-    # Retrieve Pinecone API Key
-    api_key = os.environ.get("PINECONE_API_KEY")
-    pc = Pinecone(api_key=api_key)
+    if not pc:
+        raise ValueError("Pinecone client not initialized.")
 
-    # Node 1: Retrieve matching chunks
+    # Node 1: Retrieve matching chunks from Pinecone
     def retrieve_node(state: GraphState) -> dict:
         query = state["question"]
         print("-> [Node: Retrieve] Searching Pinecone vector index...")
         
         index = pc.Index(index_name)
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2")
         query_vector = embeddings.embed_query(query)
-        results = index.query(vector=query_vector, top_k=3, include_metadata=True)
         
+        # 1. Query more results (top 12) from Pinecone to perform client-side re-ranking
+        results = index.query(vector=query_vector, top_k=12, include_metadata=True)
         matches = results.get("matches", [])
-        retrieved_chunks = []
-        scores = []
+        
+        # 2. Parse keywords from query (ignore casing and typical question/comparison stop words)
+        stop_words = {"compare", "versus", "vs", "difference", "differences", "between", "and", "what", "is", "are", "the", "a", "an", "of", "in", "to", "for", "with", "similarities"}
+        query_words = [w.strip("?,.!:;").lower() for w in query.split()]
+        keywords = [w for w in query_words if w not in stop_words and len(w) > 2]
+        
+        is_comparison_query = any(w in query_words for w in ["compare", "versus", "vs", "difference", "differences", "comparison", "contrast", "between"])
+        
+        # 3. Score each chunk based on relevance boosts
+        scored_matches = []
         for match in matches:
             text = match.get("metadata", {}).get("text", "")
+            if not text:
+                continue
+            
             score = match.get("score", 0.0)
-            if text:
-                retrieved_chunks.append({"text": text, "score": score})
-                scores.append(score)
+            text_lower = text.lower()
+            
+            # Boost score if the chunk contains query keywords (Co-occurrence/Entity matching)
+            matched_keywords = sum(1 for kw in keywords if kw in text_lower)
+            if keywords:
+                keyword_ratio = matched_keywords / len(keywords)
+                score += keyword_ratio * 0.35  # Up to 0.35 boost for entity co-occurrence
+                
+            # Boost score if this is a comparison query and the chunk contains comparison cues
+            if is_comparison_query:
+                comparison_indicators = ["vs", "versus", "compare", "comparison", "difference", "differ", "table", "contrast", "on the other hand", "whereas", "while"]
+                found_indicators = sum(1 for ci in comparison_indicators if ci in text_lower)
+                if found_indicators > 0:
+                    score += 0.25  # Up to 0.25 boost for matching comparison concepts
+            
+            scored_matches.append((match, score))
+            
+        # Sort matched chunks by their newly calculated relevance score (descending)
+        scored_matches.sort(key=lambda x: x[1], reverse=True)
         
+        # 4. Filter for Diversity (Jaccard similarity to prune redundant/duplicate chunks)
+        selected_matches = []
+        
+        def get_words_set(t):
+            return set(t.lower().split())
+            
+        for match, boosted_score in scored_matches:
+            if len(selected_matches) >= 3:
+                break
+                
+            text = match.get("metadata", {}).get("text", "")
+            words_set = get_words_set(text)
+            
+            is_duplicate = False
+            for sel_match in selected_matches:
+                sel_text = sel_match.get("metadata", {}).get("text", "")
+                sel_words = get_words_set(sel_text)
+                
+                # Jaccard index calculation
+                intersection = len(words_set.intersection(sel_words))
+                union = len(words_set.union(sel_words))
+                jaccard = intersection / union if union > 0 else 0.0
+                
+                # Skip if word overlap is greater than 50%
+                if jaccard > 0.5:
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                selected_matches.append(match)
+                
+        # Fill remaining slots up to 3 if diversity filter was too strict
+        if len(selected_matches) < 3:
+            for match, boosted_score in scored_matches:
+                if len(selected_matches) >= 3:
+                    break
+                if match not in selected_matches:
+                    selected_matches.append(match)
+                    
+        # 5. Format final top 3 chunks (prepend Page Number to display text)
+        retrieved_chunks = []
+        scores = []
+        for match in selected_matches[:3]:
+            text = match.get("metadata", {}).get("text", "")
+            score = match.get("score", 0.0)
+            page = match.get("metadata", {}).get("page", None)
+            
+            # Embed page metadata directly into text for UI display purposes
+            display_text = f"[Page {page + 1}] {text}" if page is not None else text
+            
+            retrieved_chunks.append({"text": display_text, "score": score})
+            scores.append(score)
+            
         context = "\n\n".join([chunk["text"] for chunk in retrieved_chunks])
-        
-        # Confidence score is the highest similarity score (first match since results are sorted desc)
         confidence = scores[0] if scores else 0.0
         
-        # Returns the updated keys which will be merged into GraphState
         return {
             "context": context,
             "retrieved_chunks": retrieved_chunks,
             "confidence": confidence
         }
 
-    # Node 2: Generate response
+    # Node 2: Generate response using LLM grounded in context
     def generate_node(state: GraphState) -> dict:
         query = state["question"]
         context = state["context"]
@@ -212,23 +269,17 @@ def compile_rag_graph(index_name: str) -> StateGraph:
             ("system", system_instruction),
             ("human", user_prompt)
         ])
-        
-        # Returns the updated key which will be merged into GraphState
         return {"answer": response.content}
 
-    # Build the StateGraph workflow
+    # Connect nodes into the StateGraph
     workflow = StateGraph(GraphState)
-    
-    # Register the nodes
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
     
-    # Establish simple linear transitions (START -> retrieve -> generate -> END)
     workflow.add_edge(START, "retrieve")
     workflow.add_edge("retrieve", "generate")
     workflow.add_edge("generate", END)
     
-    # Compile the graph
     return workflow.compile()
 
 
@@ -236,12 +287,8 @@ def query_rag_with_graph(query: str, index_name: str):
     """
     Invokes the compiled StateGraph workflow and prints the final grounded answer.
     """
-    # Compile the graph
     app = compile_rag_graph(index_name)
-    
     print(f"\nInvoking LangGraph for query: '{query}'...")
-    
-    # Execute the graph with the initial state
     result = app.invoke({"question": query})
     
     print("\n" + "="*40)
@@ -255,35 +302,27 @@ if __name__ == "__main__":
     index_name = "rag-chatbot-index"
     pdf_path = "data/agentic_ai.pdf"
     
-    # Connect to Pinecone and check status
-    api_key = os.environ.get("PINECONE_API_KEY")
-    if not api_key or api_key == "your_pinecone_api_key_here":
-        print("Error: Please set your PINECONE_API_KEY in the .env file.")
+    if not PINECONE_API_KEY:
+        print("Error: Please set PINECONE_API_KEY in the .env file.")
         exit(1)
         
-    pc = Pinecone(api_key=api_key)
-    
-    # Retrieve existing indexes
+    # Check if index exists and contains vectors
     existing_indexes = [idx.name for idx in pc.list_indexes()]
     
-    # If the index does not exist, run the setup and ingestion
     if index_name not in existing_indexes:
         print(f"Index '{index_name}' not found. Running ingestion pipeline...")
         chunks, vector_list = process_pdf_and_embed(pdf_path)
         if chunks and vector_list:
-            dimension = len(vector_list[0])
-            pc = setup_pinecone_index(index_name, dimension)
-            if pc:
-                upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
+            setup_pinecone_index(index_name, len(vector_list[0]))
+            upload_vectors_to_pinecone(index_name, chunks, vector_list)
     else:
-        # Index exists, check if it's empty
         index = pc.Index(index_name)
         stats = index.describe_index_stats()
         if stats.get("total_vector_count", 0) == 0:
-            print(f"Index '{index_name}' exists but is empty. Running ingestion pipeline...")
+            print(f"Index '{index_name}' is empty. Running ingestion pipeline...")
             chunks, vector_list = process_pdf_and_embed(pdf_path)
             if chunks and vector_list:
-                upload_vectors_to_pinecone(pc, index_name, chunks, vector_list)
+                upload_vectors_to_pinecone(index_name, chunks, vector_list)
         else:
             print(f"Index '{index_name}' is already populated with {stats['total_vector_count']} vectors.")
 
@@ -299,7 +338,6 @@ if __name__ == "__main__":
             if not query.strip():
                 continue
             
-            # Execute search through the LangGraph RAG workflow
             query_rag_with_graph(query.strip(), index_name)
             
         except KeyboardInterrupt:
