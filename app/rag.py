@@ -240,7 +240,7 @@ def compile_rag_graph(index_name: str) -> StateGraph:
             scores.append(score)
             
         context = "\n\n".join([chunk["text"] for chunk in retrieved_chunks])
-        confidence = scores[0] if scores else 0.0
+        confidence = max(scores) if scores else 0.0
         
         return {
             "context": context,
@@ -257,11 +257,13 @@ def compile_rag_graph(index_name: str) -> StateGraph:
         llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
         
         system_instruction = (
-            "You are a helpful assistant. You must answer the user's question ONLY using the provided context. "
-            "Do not add any external knowledge or make assumptions. "
-            "If the answer is not explicitly present in the provided context, you must reply exactly with: "
+            "You are a helpful assistant. You must answer the user's question ONLY using the provided context.\n"
+            "Rules:\n"
+            "1. Base your answer strictly on the facts directly mentioned in the context. Do not use outside knowledge or introduce facts not in the context.\n"
+            "2. For reasoning, relationship, or synthesis questions (e.g., how concepts connect, work together, or their benefits), you are expected to synthesize and connect the relevant definitions and facts present in the context to construct a helpful explanation, rather than refusing to answer.\n"
+            "3. If the context does not contain any relevant information about the query's terms or concepts, reply exactly with: "
             "\"I could not find this information in the provided document.\"\n"
-            "Return only the answer."
+            "4. Return only the direct answer to the question."
         )
         user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
         
