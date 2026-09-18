@@ -437,31 +437,118 @@ class GraphState(TypedDict):
     answer_confidence: str
 
 
+def compute_grounding_confidence(
+    query: str, 
+    answer: str, 
+    context: str, 
+    retrieved_chunks: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Computes answer_grounded and answer_confidence based on actual evidence coverage signals
+    rather than mapping raw vector retrieval similarity to confidence.
+
+    Evidence coverage signals:
+    1. Abstention detection: If model states it could not find the information, marked Not Grounded.
+    2. Answer claim verification (Faithfulness): Proportion of substantive answer sentences whose key terms
+       are corroborated by the retrieved context.
+    3. Query concept coverage (Completeness): Proportion of content words in the user query found in the retrieved context.
+    4. Evidence presence: Number of relevant retrieved context chunks.
+    """
+    ans_lower = answer.lower().strip()
+    ctx_lower = context.lower()
+    q_lower = query.lower()
+
+    if "could not find this information in the provided document" in ans_lower or not retrieved_chunks:
+        return {
+            "answer_grounded": False,
+            "answer_confidence": "Not Grounded",
+            "claim_support_ratio": 0.0,
+            "query_concept_coverage": 0.0,
+            "evidence_score": 0.0
+        }
+
+    stopwords = {
+        "what", "are", "the", "of", "an", "and", "does", "each", "do", "in", "is",
+        "for", "to", "from", "how", "why", "a", "this", "that", "it", "on", "with",
+        "as", "by", "or", "tell", "me", "about", "describe", "explain"
+    }
+
+    # 1. Query Concept Coverage Signal
+    q_words = [w for w in re.findall(r"\b[a-zA-Z0-9_-]{3,}\b", q_lower) if w not in stopwords]
+    q_covered = [w for w in q_words if w in ctx_lower]
+    query_concept_coverage = len(q_covered) / len(q_words) if q_words else 1.0
+
+    # 2. Answer Claim Grounding Signal
+    sentences = [s.strip() for s in re.split(r"[\n\.]+", answer) if len(s.strip()) > 15]
+    substantive_sentences = [
+        s for s in sentences 
+        if "based on the provided document" not in s.lower() and "as follows" not in s.lower()
+    ]
+
+    supported_count = 0
+    for s in substantive_sentences:
+        s_words = [w for w in re.findall(r"\b[a-zA-Z0-9_-]{3,}\b", s.lower()) if w not in stopwords]
+        if not s_words:
+            continue
+        found = sum(1 for w in s_words if w in ctx_lower)
+        if (found / len(s_words)) >= 0.65:
+            supported_count += 1
+
+    total_substantive = max(1, len(substantive_sentences))
+    claim_support_ratio = supported_count / total_substantive
+
+    # 3. Composite Evidence Score
+    evidence_score = 0.60 * claim_support_ratio + 0.40 * query_concept_coverage
+
+    # 4. Confidence level determination based on evidence coverage
+    if claim_support_ratio >= 0.80 and evidence_score >= 0.75:
+        confidence = "High"
+        grounded = True
+    elif claim_support_ratio >= 0.60 and evidence_score >= 0.55:
+        confidence = "Medium"
+        grounded = True
+    elif claim_support_ratio >= 0.40:
+        confidence = "Low"
+        grounded = True
+    else:
+        confidence = "Low"
+        grounded = False
+
+    return {
+        "answer_grounded": grounded,
+        "answer_confidence": confidence,
+        "claim_support_ratio": round(claim_support_ratio, 4),
+        "query_concept_coverage": round(query_concept_coverage, 4),
+        "evidence_score": round(evidence_score, 4),
+        "supported_sentences": supported_count,
+        "total_substantive_sentences": total_substantive
+    }
+
+
 def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
     """Compiles the LangGraph RAG workflow with hybrid retrieval and strict grounding."""
+    # Ensure in-memory BM25 index is loaded
     load_chunks_corpus()
 
     def retrieve_node(state: GraphState) -> dict:
         query = state["question"]
-        results = hybrid_retrieve(query, index_name=index_name)
+        results = hybrid_retrieve(query, index_name=index_name, top_k=6)
 
-        formatted_chunks = []
         context_parts = []
         scores = []
+        formatted_chunks = []
 
         for r in results:
-            scores.append(r["score"])
-            # Format text block with page and section for LLM context
-            header_str = (
-                f"[Section: {r['section']} | PDF Page: {r['pdf_page_number']} "
-                f"| Printed Page: {r['printed_page_number']}]"
+            header = (
+                f"[Section: {r['section']} | "
+                f"PDF Page: {r['pdf_page_number']} | "
+                f"Printed Page: {r['printed_page_number']}]"
             )
-            block = f"{header_str}\n{r['text']}"
-            context_parts.append(block)
-
+            context_parts.append(f"{header}\n{r['text']}")
+            scores.append(r["score"])
             formatted_chunks.append({
                 "chunk_id": r["chunk_id"],
-                "text": f"{header_str}\n{r['text']}",
+                "text": f"{header}\n{r['text']}",
                 "score": r["score"],
                 "document": r["document"],
                 "chapter": r["chapter"],
@@ -483,6 +570,7 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
     def generate_node(state: GraphState) -> dict:
         query = state["question"]
         context = state["context"]
+        retrieved_chunks = state.get("retrieved_chunks", [])
 
         llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", max_retries=6)
 
@@ -504,8 +592,8 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
         for attempt in range(5):
             try:
                 response = llm.invoke([
-                    ("system", system_instruction),
-                    ("human", user_prompt)
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_prompt}
                 ])
                 break
             except Exception as e:
@@ -522,27 +610,13 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
         else:
             ans = str(response.content).strip()
 
-        is_abstention = "I could not find this information in the provided document." in ans
-        
-        # Grounding & Confidence rating
-        retrieval_score = state.get("retrieval_score", 0.0)
-        if is_abstention:
-            answer_confidence = "Not Grounded"
-            answer_grounded = False
-        elif retrieval_score >= 0.78:
-            answer_confidence = "High"
-            answer_grounded = True
-        elif retrieval_score >= 0.65:
-            answer_confidence = "Medium"
-            answer_grounded = True
-        else:
-            answer_confidence = "Low"
-            answer_grounded = True
+        # Evidence-coverage-based grounding and confidence calculation
+        eval_metrics = compute_grounding_confidence(query, ans, context, retrieved_chunks)
 
         return {
             "answer": ans,
-            "answer_grounded": answer_grounded,
-            "answer_confidence": answer_confidence
+            "answer_grounded": eval_metrics["answer_grounded"],
+            "answer_confidence": eval_metrics["answer_confidence"]
         }
 
     workflow = StateGraph(GraphState)
