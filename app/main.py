@@ -16,23 +16,32 @@ graph_app = compile_rag_graph(INDEX_NAME)
 class ChatRequest(BaseModel):
     question: str
 
-# Represents each retrieved chunk with text and similarity score
+# Represents each retrieved chunk with text, similarity score, and structure metadata
 class ContextChunk(BaseModel):
     text: str
     score: float
+    document: str = "Agentic AI for Executives"
+    chapter: str = ""
+    section: str = ""
+    pdf_page_number: int = 0
+    printed_page_number: int = 0
+    chunk_id: str = ""
 
 # Pydantic schema for response structure matching requested JSON
 class ChatResponse(BaseModel):
     answer: str
     context: list[ContextChunk]
-    confidence: float
+    confidence: float  # Maintained for backward compatibility
+    retrieval_score: float = 0.0
+    answer_grounded: bool = True
+    answer_confidence: str = "High"
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
     HTTP POST Endpoint that accepts a question, runs the LangGraph RAG pipeline,
     and returns the grounded LLM answer, the text chunks bundled with their individual
-    similarity scores, and a confidence score based on the highest similarity.
+    similarity scores and structural metadata, and separated retrieval vs grounding confidence metrics.
     """
     # Reject empty questions
     if not request.question.strip():
@@ -44,7 +53,16 @@ async def chat_endpoint(request: ChatRequest):
         
         # Format the context chunks into ContextChunk model schemas
         context_chunks = [
-            ContextChunk(text=chunk["text"], score=chunk["score"])
+            ContextChunk(
+                text=chunk.get("text", ""),
+                score=chunk.get("score", 0.0),
+                document=chunk.get("document", "Agentic AI for Executives"),
+                chapter=chunk.get("chapter", ""),
+                section=chunk.get("section", ""),
+                pdf_page_number=chunk.get("pdf_page_number", 0),
+                printed_page_number=chunk.get("printed_page_number", 0),
+                chunk_id=chunk.get("chunk_id", "")
+            )
             for chunk in result.get("retrieved_chunks", [])
         ]
         
@@ -52,7 +70,10 @@ async def chat_endpoint(request: ChatRequest):
         return ChatResponse(
             answer=result.get("answer", "No answer generated."),
             context=context_chunks,
-            confidence=result.get("confidence", 0.0)
+            confidence=result.get("confidence", 0.0),
+            retrieval_score=result.get("retrieval_score", 0.0),
+            answer_grounded=result.get("answer_grounded", True),
+            answer_confidence=result.get("answer_confidence", "High")
         )
     except Exception as e:
         # Catch unexpected pipeline exceptions and return them as standard server errors

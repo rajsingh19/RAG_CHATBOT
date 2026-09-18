@@ -30,52 +30,56 @@ if st.button("Send"):
                     data = response.json()
                     answer = data.get("answer", "")
                     context_chunks = data.get("context", [])
-                    confidence = data.get("confidence", 0.0)
+                    retrieval_score = data.get("retrieval_score", data.get("confidence", 0.0))
+                    answer_grounded = data.get("answer_grounded", True)
+                    answer_confidence = data.get("answer_confidence", "High")
                     
-                    # 1. Out-of-Context Response Check
-                    # If similarity score is very low (less than 0.50) or context is empty, override answer
-                    is_out_of_context = not context_chunks or confidence < 0.50
-                    if is_out_of_context:
-                        answer = "I couldn't find this information in the uploaded PDF."
+                    is_abstention = "could not find this information in the provided document" in answer.lower()
                     
-                    # 2. Answer Section
-                    # Display answer inside a clean container with heading
+                    # 1. Answer Section
                     with st.container():
                         st.markdown("## 🤖 Answer")
                         st.write(answer)
                     
-                    # 3. Confidence level and coloring
-                    confidence_percentage = confidence * 100
-                    if confidence_percentage >= 80:
-                        st.success(f"Confidence: {confidence_percentage:.2f}% (High)")
-                    elif confidence_percentage >= 60:
-                        st.info(f"Confidence: {confidence_percentage:.2f}% (Medium)")
+                    # 2. Status & Confidence Indicators
+                    if is_abstention or not answer_grounded:
+                        st.warning("⚠️ Information Not Found in Document (Abstained)")
                     else:
-                        st.warning(f"Confidence: {confidence_percentage:.2f}% (Low)")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if answer_confidence == "High":
+                                st.success("✅ Grounding: High Confidence")
+                            elif answer_confidence == "Medium":
+                                st.info("ℹ️ Grounding: Medium Confidence")
+                            else:
+                                st.warning("⚠️ Grounding: Low Confidence")
+                        with col2:
+                            st.metric(label="Retrieval Similarity Score", value=f"{retrieval_score:.4f}")
                     
-                    # 4. Retrieved Context Section
-                    st.markdown("### 📄 Retrieved Context")
-                    if not is_out_of_context:
+                    # 3. Retrieved Context Section
+                    st.markdown("### 📄 Retrieved Context Evidence")
+                    if context_chunks:
                         for idx, chunk in enumerate(context_chunks):
                             score = chunk.get("score", 0.0)
                             text = chunk.get("text", "")
+                            sec = chunk.get("section", "General")
+                            ch = chunk.get("chapter", "")
+                            pdf_p = chunk.get("pdf_page_number", "N/A")
+                            prt_p = chunk.get("printed_page_number", "N/A")
+                            c_id = chunk.get("chunk_id", f"chunk_{idx}")
                             
-                            # Trim text to first 300 characters
-                            trimmed_text = text[:300] + "..." if len(text) > 300 else text
+                            expander_title = f"Context {idx + 1}: {sec} (PDF Page {pdf_p}, Printed Page {prt_p})"
                             
-                            # Title of expander. Since page metadata is not present in our API response,
-                            # we don't display anything extra as per requirements.
-                            expander_title = f"Retrieved Context {idx + 1}"
-                            
-                            with st.expander(expander_title):
-                                st.write(f"**Similarity Score:** {score * 100:.2f}%")
-                                st.write(trimmed_text)
+                            with st.expander(expander_title, expanded=(idx == 0)):
+                                st.markdown(f"**Section:** {sec} | **Chapter:** {ch}")
+                                st.markdown(f"**Physical PDF Page:** {pdf_p} | **Printed Page:** {prt_p} | **Retrieval Score:** {score:.4f}")
+                                st.text_area("Content:", value=text, height=180, key=f"chunk_txt_{idx}")
                     else:
-                        st.write("No matching context chunks available.")
+                        st.write("No context chunks retrieved.")
                     
-                    # 5. Footer (displayed at the bottom of every response)
+                    # 4. Footer
                     st.write("---")
-                    st.caption("Source: Answer generated only from the uploaded PDF using Retrieval-Augmented Generation (RAG).")
+                    st.caption("Source: Answer generated exclusively from the uploaded PDF using Structure-Aware RAG.")
                 else:
                     # Handle API status errors
                     st.error(f"API Error {response.status_code}: {response.text}")

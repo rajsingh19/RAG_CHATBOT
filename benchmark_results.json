@@ -1,0 +1,578 @@
+[
+  {
+    "test_id": "TEST 1",
+    "query": "What are the six core pillars of Agentic AI?",
+    "expected_section": "2.1 The Core Pillars: From Perception to Execution",
+    "expected_pages": [
+      19
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p19_0",
+      "chunk_p17_0",
+      "chunk_p32_0",
+      "chunk_p6_0",
+      "chunk_p18_0",
+      "chunk_p14_0"
+    ],
+    "retrieved_sections": [
+      "2.1 The Core Pillars: From Perception to Execution",
+      "1.5 Agentic AI Use cases",
+      "3.1 Structural Layers in Multi-Agent Systems",
+      "Overview",
+      "1.5 Agentic AI Use cases",
+      "1.5 Agentic AI Use cases"
+    ],
+    "retrieved_pages": [
+      19.0,
+      17.0,
+      32.0,
+      6.0,
+      18.0,
+      14
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7416,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, the six core pillars of Agentic AI are:\n\n1. **Perception (The Eyes and Ears of AI):** \n   * **Definition:** Agentic AI starts by perceiving its environment, leveraging technologies such as computer vision and natural language processing to convert raw data into actionable insights.\n   * **Example:** In a production line, the AI system identifies defective products by analyzing images in real time, reducing waste and boosting efficiency.\n\n2. **Reasoning (The Brain Behind Decisions):**\n   * **Definition:** Reasoning enables these systems to detect patterns, make connections, and draw conclusions.\n   * **Example:** The production line AI uses reasoning to correlate defect patterns with specific machine errors, enabling proactive maintenance and preventing downtime.\n\n3. **Planning (Charting the Path to Success):**\n   * **Definition:** Planning ensures that Agentic AI systems strategize effectively, optimizing resources and achieving goals within constraints.\n   * **Example:** The production line AI plans the allocation of inspection resources to areas with higher defect probabilities, ensuring streamlined operations and minimal delays.\n\n4. **Learning (Continuous Improvement):**\n   * **Definition:** Agentic AI systems learn from past experiences and adapt in real time, enhancing their capabilities.\n   * **Example:** Over time, the production line AI learns to recognize emerging defect patterns, continuously improving its detection accuracy and reducing false positives.\n\n5. **Execution (Transforming Plans into Action):**\n   * **Definition:** Execution is where AI manifests its strategies, automating tasks with precision and consistency.\n   * **Example:** The production line AI integrates with systems to automatically remove defective products, ensuring quality control with minimal human intervention.\n\n6. **Verification (Ensuring Accuracy Before Action):**\n   * **Definition:** Verification checks the accuracy and reliability of the AI\u2019s reasoning, planning, and learning before execution, ensuring consistency and reducing errors.\n   * **Example:** The AI verifies its model against new data before applying strategies.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "ORIGINAL FAILING QUERY",
+    "query": "What are the six core pillars of an Agentic AI system, and what does each pillar do?",
+    "expected_section": "2.1 The Core Pillars: From Perception to Execution",
+    "expected_pages": [
+      19
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p19_0",
+      "chunk_p17_0",
+      "chunk_p18_0",
+      "chunk_p7_0",
+      "chunk_p32_0",
+      "chunk_p14_0"
+    ],
+    "retrieved_sections": [
+      "2.1 The Core Pillars: From Perception to Execution",
+      "1.5 Agentic AI Use cases",
+      "1.5 Agentic AI Use cases",
+      "Overview",
+      "3.1 Structural Layers in Multi-Agent Systems",
+      "1.5 Agentic AI Use cases"
+    ],
+    "retrieved_pages": [
+      19.0,
+      17.0,
+      18.0,
+      7,
+      32.0,
+      14
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7486,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, the six core pillars of an Agentic AI system and their respective functions are:\n\n1. **Perception (The Eyes and Ears of AI)**\n   * **What it does:** It starts by perceiving the system's environment, leveraging technologies such as computer vision and natural language processing to convert raw data into actionable insights.\n   * *Example:* In a production line, the system identifies defective products by analyzing images in real time.\n\n2. **Reasoning (The Brain Behind Decisions)**\n   * **What it does:** It enables the system to detect patterns, make connections, and draw conclusions.\n   * *Example:* The system correlates defect patterns with specific machine errors, allowing for proactive maintenance and preventing downtime.\n\n3. **Planning (Charting the Path to Success)**\n   * **What it does:** It ensures that Agentic AI systems strategize effectively, optimizing resources and achieving goals within constraints.\n   * *Example:* The system plans the allocation of inspection resources to areas with higher defect probabilities, ensuring streamlined operations.\n\n4. **Learning (Continuous Improvement)**\n   * **What it does:** It allows the system to learn from past experiences and adapt in real time, enhancing its capabilities over time.\n   * *Example:* The system learns to recognize emerging defect patterns, continuously improving detection accuracy and reducing false positives.\n\n5. **Execution (Transforming Plans into Action)**\n   * **What it does:** This is where the AI manifests its strategies, automating tasks with precision and consistency.\n   * *Example:* The system integrates with external systems to automatically remove defective products, ensuring quality control with minimal human intervention.\n\n6. **Verification (Ensuring Accuracy Before Action)**\n   * **What it does:** It checks the accuracy and reliability of the AI\u2019s reasoning, planning, and learning before execution, ensuring consistency and reducing errors.\n   * *Example:* The AI verifies its model against new data before applying its strategies.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "PHRASING INVARIANCE 1",
+    "query": "Explain the core pillars of Agentic AI.",
+    "expected_section": "2.1 The Core Pillars: From Perception to Execution",
+    "expected_pages": [
+      19
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p19_0",
+      "chunk_p32_0",
+      "chunk_p17_0",
+      "chunk_p20_0",
+      "chunk_p8_0"
+    ],
+    "retrieved_sections": [
+      "2.1 The Core Pillars: From Perception to Execution",
+      "3.1 Structural Layers in Multi-Agent Systems",
+      "1.5 Agentic AI Use cases",
+      "2.2 Understanding the Building Blocks",
+      "Overview"
+    ],
+    "retrieved_pages": [
+      19.0,
+      32.0,
+      17.0,
+      20.0,
+      8.0
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7486,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, the core pillars of Agentic AI work together to enable autonomous decision-making and action. These pillars are detailed below:\n\n*   **Perception (The Eyes and Ears of AI):** \n    This pillar starts the process by perceiving the environment, using technologies like computer vision and natural language processing to convert raw data into actionable insights. \n    *   *Example:* In a production line, an AI system uses real-time image analysis to identify defective products, reducing waste and boosting efficiency.\n\n*   **Reasoning (The Brain Behind Decisions):** \n    Reasoning allows Agentic AI systems to detect patterns, make connections, and draw conclusions from the perceived data.\n    *   *Example:* The production line AI correlates defect patterns with specific machine errors, allowing for proactive maintenance and preventing downtime.\n\n*   **Planning (Charting the Path to Success):** \n    This pillar ensures that the system strategizes effectively, optimizing resources and achieving goals within defined constraints.\n    *   *Example:* The AI plans the allocation of inspection resources to areas with higher defect probabilities, streamlining operations and minimizing delays.\n\n*   **Learning (Continuous Improvement):** \n    Agentic AI systems learn from past experiences and adapt in real time, continuously enhancing their overall capabilities.\n    *   *Example:* Over time, the production line AI learns to recognize emerging defect patterns, which improves its detection accuracy and reduces false positives.\n\n*   **Execution (Transforming Plans into Action):** \n    Execution is where the system manifests its strategies by automating tasks with precision and consistency.\n    *   *Example:* The AI integrates with other systems to automatically remove defective products, ensuring quality control with minimal human intervention.\n\n*   **Verification (Ensuring Accuracy Before Action):** \n    Before execution, verification checks the accuracy and reliability of the AI\u2019s reasoning, planning, and learning to ensure consistency and minimize errors.\n    *   *Example:* The AI verifies its model against new data before applying its strategies.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "PHRASING INVARIANCE 2",
+    "query": "What are the six components involved in the production-line AI example?",
+    "expected_section": "2.1 The Core Pillars: From Perception to Execution",
+    "expected_pages": [
+      19
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p19_0",
+      "chunk_p30_0",
+      "chunk_p51_0",
+      "chunk_p17_0",
+      "chunk_p20_0"
+    ],
+    "retrieved_sections": [
+      "2.1 The Core Pillars: From Perception to Execution",
+      "2.6 How Agentic AI Shapes Industries?",
+      "4.5 Practical Steps for Organizations: Workflows and",
+      "1.5 Agentic AI Use cases",
+      "2.2 Understanding the Building Blocks"
+    ],
+    "retrieved_pages": [
+      19.0,
+      30.0,
+      51.0,
+      17.0,
+      20.0
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7365,
+    "retrieval_success": true,
+    "answer": "Based on the provided context, the six components (pillars) involved in the production-line AI example are:\n\n1. **Perception**: The AI identifies defective products by analyzing images in real time to reduce waste and boost efficiency.\n2. **Reasoning**: The AI correlates defect patterns with specific machine errors, enabling proactive maintenance and preventing downtime.\n3. **Planning**: The AI plans the allocation of inspection resources to areas with higher defect probabilities to ensure streamlined operations and minimal delays.\n4. **Learning**: Over time, the AI learns to recognize emerging defect patterns, continuously improving its detection accuracy and reducing false positives.\n5. **Execution**: The AI integrates with systems to automatically remove defective products, ensuring quality control with minimal human intervention.\n6. **Verification**: The AI verifies its model against new data before applying strategies to ensure accuracy and reliability before execution.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 2",
+    "query": "What does perception mean in an Agentic AI system?",
+    "expected_section": "2.1 The Core Pillars: From Perception to Execution",
+    "expected_pages": [
+      19
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p31_0",
+      "chunk_p19_0",
+      "chunk_p17_0",
+      "chunk_p9_0",
+      "chunk_p7_0"
+    ],
+    "retrieved_sections": [
+      "3.1 Structural Layers in Multi-Agent Systems",
+      "2.1 The Core Pillars: From Perception to Execution",
+      "1.5 Agentic AI Use cases",
+      "1.1 The Terminology Maze",
+      "Overview"
+    ],
+    "retrieved_pages": [
+      31.0,
+      19.0,
+      17.0,
+      9.0,
+      7
+    ],
+    "retrieval_rank": 2,
+    "retrieval_score": 0.7573,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, **perception** in an Agentic AI system represents \"the eyes and ears of AI\" and is characterized by the following:\n\n* **Definition and Function:** Agentic AI starts by perceiving its environment, leveraging technologies such as computer vision and natural language processing to convert raw data into actionable insights. \n* **The Perception Layer:** At the foundational architectural level, this layer is responsible for data acquisition from the environment. It uses sensors and input devices to capture raw data (which can be visual, auditory, or textual).\n* **Data Preprocessing:** The captured raw data is preprocessed to extract meaningful features and filter out noise and irrelevant details using techniques from computer vision, natural language processing, or sensor fusion. This ensures subsequent layers receive clean, actionable inputs.\n* **Example:** In a production line, an AI system uses perception to identify defective products by analyzing images in real time.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 3",
+    "query": "What is the difference between LLMs and agents?",
+    "expected_section": "1.1 The Terminology Maze",
+    "expected_pages": [
+      9
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p9_0",
+      "chunk_p10_0",
+      "chunk_p21_0",
+      "chunk_p59_0",
+      "chunk_p11_0"
+    ],
+    "retrieved_sections": [
+      "1.1 The Terminology Maze",
+      "1.1 The Terminology Maze",
+      "2.3 Defining Characteristics of an Agent",
+      "Overview",
+      "1.2  How Agentic AI Stands Apart"
+    ],
+    "retrieved_pages": [
+      9.0,
+      10.0,
+      21.0,
+      59,
+      11.0
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.729,
+    "retrieval_success": true,
+    "answer": "Based on the provided context, the differences between LLMs and agents are categorized by several key aspects:\n\n* **Definition and Scope:** \n  * **LLMs** are powerful tools specifically for processing and generating human-like text (language understanding and generation). \n  * **Agents** are more than LLMs; they are goal-driven, autonomous systems capable of performing actions in a dynamic environment.\n\n* **Interactivity:** \n  * **LLMs** are reactive, meaning they respond to inputs. \n  * **Agents** are proactive, operating continuously with minimal human intervention.\n\n* **Decision-Making:** \n  * **LLMs** lack inherent decision-making capabilities. \n  * **Agents** make context-aware, goal-driven decisions.\n\n* **Dependency:** \n  * **LLMs** need prompts to function. \n  * **Agents** can integrate multiple tools, including LLMs, to achieve their goals.\n\n* **Primary Function & Core Capability:** \n  * **LLMs** focus on language understanding and generation. \n  * **Agents** focus on making decisions and taking actions toward goals, embodying autonomy, adaptability, and proactive behavior.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 4",
+    "query": "What is the difference between RPA and Agentic AI?",
+    "expected_section": "1.1 The Terminology Maze",
+    "expected_pages": [
+      9
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p9_0",
+      "chunk_p7_0",
+      "chunk_p11_0",
+      "chunk_p54_0",
+      "chunk_p18_0",
+      "chunk_p10_0"
+    ],
+    "retrieved_sections": [
+      "1.1 The Terminology Maze",
+      "Overview",
+      "1.2  How Agentic AI Stands Apart",
+      "Overview",
+      "1.5 Agentic AI Use cases",
+      "1.1 The Terminology Maze"
+    ],
+    "retrieved_pages": [
+      9.0,
+      7.0,
+      11.0,
+      54,
+      18.0,
+      10
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7986,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, the difference between RPA (Robotic Process Automation) and Agentic AI is:\n\n* **RPA** excels at handling repetitive, rule-based tasks with structured data, which is described as being like following a strict recipe.\n* **Agentic AI** is capable of adapting to different situations and handling unstructured inputs, which is described as being like a chef improvising with available ingredients.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 5",
+    "query": "How are simple reflex agents different from utility-based agents?",
+    "expected_section": "2.4 Categories and Types of Agentic Systems",
+    "expected_pages": [
+      23
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p23_0",
+      "chunk_p25_0",
+      "chunk_p9_0",
+      "chunk_p24_0",
+      "chunk_p10_0"
+    ],
+    "retrieved_sections": [
+      "2.4 Categories and Types of Agentic Systems",
+      "2.5 Types of Atomic Agents",
+      "1.1 The Terminology Maze",
+      "2.4 Categories and Types of Agentic Systems",
+      "1.1 The Terminology Maze"
+    ],
+    "retrieved_pages": [
+      23.0,
+      25.0,
+      9.0,
+      24.0,
+      10.0
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7345,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, the differences between simple reflex agents and utility-based agents are:\n\n* **Simple Reflex Agents:** Respond to immediate triggers without any internal model or predictive capability. For example, a simple reflex agent instantly replies to a customer with a pre-defined response (like asking for an order number) whenever it detects a specific trigger.\n* **Utility-Based Agents:** Optimize outcomes by evaluating and balancing various factors. For example, a utility-based agent evaluates urgency, return policies, and fees to decide how to balance different interests (such as prioritizing customer satisfaction versus company interests).",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 6",
+    "query": "Why are multi-agent systems useful for complex tasks?",
+    "expected_section": "3.3 How MAS Works in the Scenario",
+    "expected_pages": [
+      35
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p29_0",
+      "chunk_p30_0",
+      "chunk_p41_0",
+      "chunk_p39_0",
+      "chunk_p18_0"
+    ],
+    "retrieved_sections": [
+      "2.6 How Agentic AI Shapes Industries?",
+      "2.6 How Agentic AI Shapes Industries?",
+      "4.2 Key Aspects of Orchestrating Multi-Agent Systems",
+      "4.1 Challenges of Orchestrating Complex",
+      "Overview"
+    ],
+    "retrieved_pages": [
+      29.0,
+      30.0,
+      41.0,
+      39.0,
+      18
+    ],
+    "retrieval_rank": null,
+    "retrieval_score": 0.7218,
+    "retrieval_success": false,
+    "answer": "Based on the provided document, multi-agent systems (MAS) are useful for complex tasks for the following reasons:\n\n* **Real-time Collaboration and Adaptation:** MAS have the ability to collaborate and adapt in real-time, making them highly suitable for handling complex, dynamic tasks.\n* **Diverse Feedback:** They shine in tasks that require diverse feedback, allowing agents to leverage feedback from other agents to verify their work and improve task outcomes.\n* **Parallel Processing and Dynamic Allocation:** Unlike single-agent systems, MAS allow independent agent operation. This facilitates dynamic task allocation and parallel processing across multiple sub-goals derived from an overall goal. \n* **Specialization and Collective Effort:** Multiple autonomous, atomic agents can each specialize in a specific task (such as inspecting products, monitoring machinery, or tracking inventory) while working collectively to ensure smooth, more accurate, and efficient operations.\n* **Enhanced Efficiency and Reduced Bottlenecks:** By executing planned and broken-down sub-tasks in parallel across multiple agents, the system optimizes its collective intelligence, enhances efficiency, reduces bottlenecks, and accelerates project completion times.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 7",
+    "query": "What percentage did automated task processing reduce manual work by?",
+    "expected_section": "1.3 Capabilities of Agentic AI",
+    "expected_pages": [
+      13
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p13_0",
+      "chunk_p6_0",
+      "chunk_p44_0",
+      "chunk_p41_0",
+      "chunk_p12_0"
+    ],
+    "retrieved_sections": [
+      "1.3 Capabilities of Agentic AI",
+      "Overview",
+      "4.4 Final Outcome and Benefits",
+      "4.2 Key Aspects of Orchestrating Multi-Agent Systems",
+      "1.3 Capabilities of Agentic AI"
+    ],
+    "retrieved_pages": [
+      13.0,
+      6.0,
+      44.0,
+      41.0,
+      12.0
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.6604,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, automated task processing reduced manual work by **40%**.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 8",
+    "query": "What percentage increase in sales was reported from real-time decision-making and sales optimization?",
+    "expected_section": "1.3 Capabilities of Agentic AI",
+    "expected_pages": [
+      13
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p13_0",
+      "chunk_p42_0",
+      "chunk_p14_0",
+      "chunk_p43_0",
+      "chunk_p34_0",
+      "chunk_p12_0",
+      "chunk_p15_0",
+      "chunk_p16_0"
+    ],
+    "retrieved_sections": [
+      "1.3 Capabilities of Agentic AI",
+      "4.3 Scenario: Multi-Agent System for Sales Forecasting",
+      "1.5 Agentic AI Use cases",
+      "4.3 Scenario: Multi-Agent System for Sales Forecasting",
+      "3.2 MAS Scenario: A Supply Chain in Crisis",
+      "1.3 Capabilities of Agentic AI",
+      "1.5 Agentic AI Use cases",
+      "1.5 Agentic AI Use cases"
+    ],
+    "retrieved_pages": [
+      13.0,
+      42.0,
+      14.0,
+      43.0,
+      34,
+      12,
+      15,
+      16
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.7377,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, real-time decision-making and sales optimization drove a **20%** increase in sales.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 9",
+    "query": "What embedding model does this PDF recommend for RAG?",
+    "expected_section": null,
+    "expected_pages": [],
+    "retrieved_chunk_ids": [
+      "chunk_p6_0",
+      "chunk_p21_0",
+      "chunk_p45_0",
+      "chunk_p7_0",
+      "chunk_p52_0",
+      "chunk_p22_0"
+    ],
+    "retrieved_sections": [
+      "Overview",
+      "2.3 Defining Characteristics of an Agent",
+      "4.5 Practical Steps for Organizations: Workflows and",
+      "Overview",
+      "4.5 Practical Steps for Organizations: Workflows and",
+      "2.3 Defining Characteristics of an Agent"
+    ],
+    "retrieved_pages": [
+      6.0,
+      21.0,
+      45.0,
+      7,
+      52.0,
+      22
+    ],
+    "retrieval_rank": null,
+    "retrieval_score": 0.6164,
+    "retrieval_success": true,
+    "answer": "I could not find this information in the provided document.",
+    "answer_grounded": false,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "TEST 10",
+    "query": "What is the exact Python implementation of the Agentic AI system described in the PDF?",
+    "expected_section": null,
+    "expected_pages": [],
+    "retrieved_chunk_ids": [
+      "chunk_p17_0",
+      "chunk_p7_0",
+      "chunk_p21_0",
+      "chunk_p20_0",
+      "chunk_p45_0",
+      "chunk_p14_0",
+      "chunk_p15_0",
+      "chunk_p16_0"
+    ],
+    "retrieved_sections": [
+      "1.5 Agentic AI Use cases",
+      "Overview",
+      "2.3 Defining Characteristics of an Agent",
+      "2.2 Understanding the Building Blocks",
+      "4.5 Practical Steps for Organizations: Workflows and",
+      "1.5 Agentic AI Use cases",
+      "1.5 Agentic AI Use cases",
+      "1.5 Agentic AI Use cases"
+    ],
+    "retrieved_pages": [
+      17.0,
+      7,
+      21.0,
+      20.0,
+      45,
+      14,
+      15,
+      16
+    ],
+    "retrieval_rank": null,
+    "retrieval_score": 0.7254,
+    "retrieval_success": true,
+    "answer": "I could not find this information in the provided document.",
+    "answer_grounded": false,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "REGRESSION 1",
+    "query": "What is Agentic AI?",
+    "expected_section": "Overview",
+    "expected_pages": [
+      7,
+      8,
+      18
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p7_0",
+      "chunk_p18_0",
+      "chunk_p9_0",
+      "chunk_p17_0",
+      "chunk_p29_0",
+      "chunk_p10_0",
+      "chunk_p14_0"
+    ],
+    "retrieved_sections": [
+      "Overview",
+      "1.5 Agentic AI Use cases",
+      "1.1 The Terminology Maze",
+      "1.5 Agentic AI Use cases",
+      "2.6 How Agentic AI Shapes Industries?",
+      "1.1 The Terminology Maze",
+      "1.5 Agentic AI Use cases"
+    ],
+    "retrieved_pages": [
+      7.0,
+      18.0,
+      9.0,
+      17.0,
+      29.0,
+      10,
+      14
+    ],
+    "retrieval_rank": 1,
+    "retrieval_score": 0.752,
+    "retrieval_success": true,
+    "answer": "Based on the provided document, **Agentic AI** is defined and described as follows:\n\n### Definition and Core Capabilities\nAgentic AI refers to AI systems capable of autonomous decision-making and action in pursuit of specific, long-term goals. Unlike reactive tools, Agentic AI acts as a proactive collaborator. At its core, it is about:\n*   **Understanding context** beyond literal instructions.\n*   **Breaking down complex goals** into manageable tasks.\n*   **Making independent, autonomous decisions** in dynamic environments.\n*   **Learning and adapting dynamically** to new situations and handling unstructured inputs.\n*   **Taking initiative** and operating continuously with minimal human intervention or constant supervision.\n\n---\n\n### Key Characteristics and Roles\nThe document illustrates Agentic AI's nature through several roles and comparisons:\n*   **The Chef:** Expertly manages tasks to create perfect outcomes, improvising with available ingredients and adapting to different situations (unlike Robotic Process Automation, which strictly follows a set \"recipe\").\n*   **The Coach:** Continuously adapts strategies to lead a team to success.\n*   **The Coordinator:** Orchestrates complex workflows with precision and harmony.\n*   **The Project Manager:** Drives progress with minimal supervision, ensuring smooth execution.\n\n---\n\n### How it Differs from Other AI Technologies\n*   **Traditional & Non-Agentic AI:** Traditional AI executes predefined rules, and non-agentic AI assists humans but lacks autonomy. Agentic AI, by contrast, learns, adapts, and acts independently.\n*   **RPA (Robotic Process Automation):** RPA excels at repetitive, rule-based tasks with structured data. Agentic AI is flexible and adapts to unstructured inputs.\n*   **LLMs (Large Language Models):** While LLMs are reactive tools focused on language understanding and generation that require prompts to function, Agentic AI systems are proactive, goal-driven, and context-aware. Agentic AI can actually integrate multiple tools\u2014including LLMs\u2014to achieve its autonomous objectives.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  },
+  {
+    "test_id": "REGRESSION 2",
+    "query": "Compare Non-agentic AI and Agentic AI",
+    "expected_section": "1.1 The Terminology Maze",
+    "expected_pages": [
+      9,
+      10,
+      11
+    ],
+    "retrieved_chunk_ids": [
+      "chunk_p11_0",
+      "chunk_p9_0",
+      "chunk_p10_0",
+      "chunk_p26_0",
+      "chunk_p53_0"
+    ],
+    "retrieved_sections": [
+      "1.2  How Agentic AI Stands Apart",
+      "1.1 The Terminology Maze",
+      "1.1 The Terminology Maze",
+      "2.6 How Agentic AI Shapes Industries?",
+      "Overview"
+    ],
+    "retrieved_pages": [
+      11.0,
+      9.0,
+      10.0,
+      26,
+      53
+    ],
+    "retrieval_rank": 2,
+    "retrieval_score": 0.7585,
+    "retrieval_success": true,
+    "answer": "Based on the provided context, the comparison between **Non-agentic AI** and **Agentic AI** is defined as follows:\n\n*   **Non-agentic AI** \n    *   **Definition:** AI systems that assist in tasks but lack autonomy.\n    *   **Capabilities:** Enhances human capabilities, with no independent action.\n\n*   **Agentic AI**\n    *   **Definition:** AI systems capable of autonomous decision-making.\n    *   **Capabilities:** Learns and adapts to new situations.",
+    "answer_grounded": true,
+    "answer_correct": true,
+    "abstention_correct": true
+  }
+]

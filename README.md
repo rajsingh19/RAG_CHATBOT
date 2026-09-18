@@ -4,7 +4,7 @@ A simple, beginner-friendly Retrieval-Augmented Generation (RAG) chatbot powered
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 The application is structured into three main layers:
 

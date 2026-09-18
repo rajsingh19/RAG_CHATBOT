@@ -9,3 +9,4 @@ python-dotenv
 langchain-community
 langchain-text-splitters
 streamlit
+rank-bm25
