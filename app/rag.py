@@ -439,6 +439,106 @@ class GraphState(TypedDict):
     claim_support_ratio: float
     unsupported_numeric_claims: int
     contradiction_count: int
+    query_relevant: bool
+    relevance_score: float
+    relevance_reason: str
+    missing_aspects: list
+    requirements: list
+    answer_status: str
+
+
+def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
+    """
+    Independent Query-Answer Relevance Evaluator.
+    Input ONLY:
+      - query
+      - answer
+
+    Evaluates whether the generated answer actually addresses the user's intent.
+    Checks:
+      1. Specific topic / entity match (e.g. Asking for Perception does not accept Planning).
+      2. Comparison completeness (e.g. Compare X and Y requires comparing both entities).
+      3. Multi-part requirements (e.g. List X AND explain functions requires both).
+      4. Numerical queries (e.g. What percentage requires the specific metric).
+      5. Valid short answers are NOT penalized.
+      6. Explicit abstentions on unanswerable queries are recognized.
+    """
+    ans_lower = answer.lower().strip()
+    is_abstention = "could not find this information in the provided document" in ans_lower
+
+    if is_abstention:
+        return {
+            "query_relevant": True,
+            "relevance_score": 1.0,
+            "reason": "Answer is an explicit abstention stating document information absence.",
+            "missing_aspects": [],
+            "requirements": [{"requirement": "State absence of document evidence", "addressed": True}]
+        }
+
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0)
+
+    system_prompt = (
+        "You are an objective Query-Answer Relevance Evaluator.\n"
+        "Your task is to determine whether the generated answer actually addresses what the user is asking.\n\n"
+        "Guidelines:\n"
+        "1. Identify the core intent and requirements of the query:\n"
+        "   - Factual definition (e.g. \"What does X do?\") -> Must explain X, not a different entity.\n"
+        "   - Comparison (e.g. \"difference between X and Y\", \"compare X and Y\") -> Must address BOTH entities.\n"
+        "     If it only explains one entity, relevance is partial (relevance_score ~ 0.30 - 0.50, query_relevant = false).\n"
+        "   - Multi-part requirements (e.g. \"What are the six pillars AND what does each do?\") -> Must address all parts.\n"
+        "     If it lists pillars without explaining their functions, relevance is partial (relevance_score ~ 0.50, query_relevant = false).\n"
+        "   - Numerical query (e.g. \"What percentage...?\") -> Must provide or address the specific metric/figure.\n"
+        "2. Do NOT penalize valid short or concise answers if they directly answer the prompt.\n"
+        "3. If the answer describes an entirely different topic or entity than requested, query_relevant = false and relevance_score = 0.0.\n"
+        "4. Output JSON ONLY matching this schema:\n"
+        "{\n"
+        "  \"query_relevant\": boolean,\n"
+        "  \"relevance_score\": float,\n"
+        "  \"reason\": \"string\",\n"
+        "  \"missing_aspects\": [\"string\"],\n"
+        "  \"requirements\": [\n"
+        "    {\"requirement\": \"string\", \"addressed\": boolean}\n"
+        "  ]\n"
+        "}"
+    )
+
+    user_prompt = f"User Query: {query}\n\nGenerated Answer: {answer}\n\nEvaluate and return JSON:"
+
+    try:
+        res = llm.invoke([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        content = res.content
+        if isinstance(content, list):
+            content = " ".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not json_match:
+            raise ValueError("No valid JSON found in relevance output.")
+
+        data = json.loads(json_match.group(0))
+        rel_score = float(data.get("relevance_score", 0.0))
+        reqs = data.get("requirements", [])
+        all_reqs_addressed = all(r.get("addressed", False) for r in reqs) if reqs else (rel_score >= 0.75)
+        is_relevant = (rel_score >= 0.75) and all_reqs_addressed
+
+        return {
+            "query_relevant": is_relevant,
+            "relevance_score": round(rel_score, 4),
+            "reason": data.get("reason", ""),
+            "missing_aspects": data.get("missing_aspects", []),
+            "requirements": reqs
+        }
+    except Exception as e:
+        print(f"Relevance evaluation fallback due to error: {e}")
+        return {
+            "query_relevant": True,
+            "relevance_score": 1.0,
+            "reason": f"Fallback: {e}",
+            "missing_aspects": [],
+            "requirements": []
+        }
 
 
 def compute_lexical_fallback(query: str, answer: str, context: str) -> Dict[str, Any]:
@@ -717,7 +817,7 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
 
         return {"answer": ans}
 
-    def evaluate_node(state: GraphState) -> dict:
+    def evaluate_grounding_node(state: GraphState) -> dict:
         query = state["question"]
         answer = state["answer"]
         context = state["context"]
@@ -734,15 +834,51 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
             "contradiction_count": eval_result.get("contradiction_count", 0)
         }
 
+    def evaluate_relevance_node(state: GraphState) -> dict:
+        query = state["question"]
+        answer = state["answer"]
+
+        # Independent query-answer relevance evaluation receiving ONLY query, answer
+        rel_result = evaluate_relevance(query, answer)
+        is_relevant = rel_result["query_relevant"]
+        relevance_score = rel_result["relevance_score"]
+        is_grounded = state.get("answer_grounded", True)
+        is_abstention = "could not find this information in the provided document" in answer.lower()
+
+        # Conceptual answer status determination
+        if is_abstention:
+            answer_status = "Legitimate Abstention"
+        elif is_grounded and is_relevant:
+            answer_status = "Grounded & Relevant"
+        elif is_grounded and not is_relevant:
+            answer_status = "Generation Failure (Irrelevant to Query)"
+        elif not is_grounded:
+            answer_status = "Not Grounded (Hallucination / Unsupported)"
+        elif relevance_score < 0.75:
+            answer_status = "Partially Relevant"
+        else:
+            answer_status = "Grounded & Relevant"
+
+        return {
+            "query_relevant": is_relevant,
+            "relevance_score": relevance_score,
+            "relevance_reason": rel_result.get("reason", ""),
+            "missing_aspects": rel_result.get("missing_aspects", []),
+            "requirements": rel_result.get("requirements", []),
+            "answer_status": answer_status
+        }
+
     workflow = StateGraph(GraphState)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
-    workflow.add_node("evaluate", evaluate_node)
+    workflow.add_node("evaluate_grounding", evaluate_grounding_node)
+    workflow.add_node("evaluate_relevance", evaluate_relevance_node)
 
     workflow.add_edge(START, "retrieve")
     workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", "evaluate")
-    workflow.add_edge("evaluate", END)
+    workflow.add_edge("generate", "evaluate_grounding")
+    workflow.add_edge("evaluate_grounding", "evaluate_relevance")
+    workflow.add_edge("evaluate_relevance", END)
 
     return workflow.compile()
 

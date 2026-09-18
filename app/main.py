@@ -39,6 +39,12 @@ class ChatResponse(BaseModel):
     unsupported_numeric_claims: int = 0
     contradiction_count: int = 0
     claims: list[dict] = []
+    query_relevant: bool = True
+    relevance_score: float = 1.0
+    relevance_reason: str = ""
+    missing_aspects: list[str] = []
+    requirements: list[dict] = []
+    answer_status: str = "Grounded & Relevant"
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -81,7 +87,13 @@ async def chat_endpoint(request: ChatRequest):
             claim_support_ratio=result.get("claim_support_ratio", 1.0),
             unsupported_numeric_claims=result.get("unsupported_numeric_claims", 0),
             contradiction_count=result.get("contradiction_count", 0),
-            claims=result.get("claims", [])
+            claims=result.get("claims", []),
+            query_relevant=result.get("query_relevant", True),
+            relevance_score=result.get("relevance_score", 1.0),
+            relevance_reason=result.get("relevance_reason", ""),
+            missing_aspects=result.get("missing_aspects", []),
+            requirements=result.get("requirements", []),
+            answer_status=result.get("answer_status", "Grounded & Relevant")
         )
     except Exception as e:
         # Catch unexpected pipeline exceptions and return them as standard server errors
