@@ -435,37 +435,23 @@ class GraphState(TypedDict):
     confidence: float
     answer_grounded: bool
     answer_confidence: str
+    claims: list
+    claim_support_ratio: float
+    unsupported_numeric_claims: int
+    contradiction_count: int
 
 
-def compute_grounding_confidence(
-    query: str, 
-    answer: str, 
-    context: str, 
-    retrieved_chunks: List[Dict[str, Any]]
-) -> Dict[str, Any]:
-    """
-    Computes answer_grounded and answer_confidence based on actual evidence coverage signals
-    rather than mapping raw vector retrieval similarity to confidence.
-
-    Evidence coverage signals:
-    1. Abstention detection: If model states it could not find the information, marked Not Grounded.
-    2. Answer claim verification (Faithfulness): Proportion of substantive answer sentences whose key terms
-       are corroborated by the retrieved context.
-    3. Query concept coverage (Completeness): Proportion of content words in the user query found in the retrieved context.
-    4. Evidence presence: Number of relevant retrieved context chunks.
-    """
+def compute_lexical_fallback(query: str, answer: str, context: str) -> Dict[str, Any]:
+    """Lightweight secondary fallback evaluator using token overlap and regex numeric verification."""
     ans_lower = answer.lower().strip()
     ctx_lower = context.lower()
     q_lower = query.lower()
 
-    if "could not find this information in the provided document" in ans_lower or not retrieved_chunks:
-        return {
-            "answer_grounded": False,
-            "answer_confidence": "Not Grounded",
-            "claim_support_ratio": 0.0,
-            "query_concept_coverage": 0.0,
-            "evidence_score": 0.0
-        }
+    # Deterministic regex for numerical claims
+    ans_nums = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", answer))
+    ctx_nums = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", context))
+    real_ans_nums = {n for n in ans_nums if not re.match(r"^[1-9]\.?$", n)}
+    unsupported_nums = [n for n in real_ans_nums if n not in ctx_nums]
 
     stopwords = {
         "what", "are", "the", "of", "an", "and", "does", "each", "do", "in", "is",
@@ -473,60 +459,180 @@ def compute_grounding_confidence(
         "as", "by", "or", "tell", "me", "about", "describe", "explain"
     }
 
-    # 1. Query Concept Coverage Signal
-    q_words = [w for w in re.findall(r"\b[a-zA-Z0-9_-]{3,}\b", q_lower) if w not in stopwords]
-    q_covered = [w for w in q_words if w in ctx_lower]
-    query_concept_coverage = len(q_covered) / len(q_words) if q_words else 1.0
-
-    # 2. Answer Claim Grounding Signal
     sentences = [s.strip() for s in re.split(r"[\n\.]+", answer) if len(s.strip()) > 15]
     substantive_sentences = [
         s for s in sentences 
         if "based on the provided document" not in s.lower() and "as follows" not in s.lower()
     ]
 
+    claims = []
     supported_count = 0
     for s in substantive_sentences:
         s_words = [w for w in re.findall(r"\b[a-zA-Z0-9_-]{3,}\b", s.lower()) if w not in stopwords]
         if not s_words:
             continue
         found = sum(1 for w in s_words if w in ctx_lower)
-        if (found / len(s_words)) >= 0.65:
+        is_sup = (found / len(s_words)) >= 0.65
+        if is_sup:
             supported_count += 1
+        claims.append({
+            "claim": s,
+            "supported": is_sup,
+            "evidence": "Lexical overlap match" if is_sup else "",
+            "contradicted": False
+        })
 
-    total_substantive = max(1, len(substantive_sentences))
-    claim_support_ratio = supported_count / total_substantive
+    total_sub = max(1, len(substantive_sentences))
+    claim_ratio = round(supported_count / total_sub, 4)
+    unsup_num_count = len(unsupported_nums)
+    is_grounded = (claim_ratio >= 0.75) and (unsup_num_count == 0)
 
-    # 3. Composite Evidence Score
-    evidence_score = 0.60 * claim_support_ratio + 0.40 * query_concept_coverage
-
-    # 4. Confidence level determination based on evidence coverage
-    if claim_support_ratio >= 0.80 and evidence_score >= 0.75:
+    if is_grounded and claim_ratio >= 0.85:
         confidence = "High"
-        grounded = True
-    elif claim_support_ratio >= 0.60 and evidence_score >= 0.55:
+    elif is_grounded:
         confidence = "Medium"
-        grounded = True
-    elif claim_support_ratio >= 0.40:
+    elif claim_ratio >= 0.40:
         confidence = "Low"
-        grounded = True
     else:
-        confidence = "Low"
-        grounded = False
+        confidence = "Not Grounded"
 
     return {
-        "answer_grounded": grounded,
-        "answer_confidence": confidence,
-        "claim_support_ratio": round(claim_support_ratio, 4),
-        "query_concept_coverage": round(query_concept_coverage, 4),
-        "evidence_score": round(evidence_score, 4),
-        "supported_sentences": supported_count,
-        "total_substantive_sentences": total_substantive
+        "claims": claims,
+        "claim_support_ratio": claim_ratio,
+        "contradiction_count": 0,
+        "unsupported_numeric_claims": unsup_num_count,
+        "grounded": is_grounded,
+        "confidence": confidence,
+        "evaluation_source": "lexical_fallback"
     }
 
 
+def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
+    """
+    Independent Grounding Evaluator.
+    Receives ONLY:
+      - query
+      - answer
+      - context
+
+    Evaluates:
+      1. Explicit detection of unsupported numerical claims (via regex + LLM)
+      2. Detection of contradictions between answer claims and retrieved context
+      3. Support for legitimate paraphrases instead of strict lexical matching
+      4. Structured evidence evaluation output:
+         {
+           "claims": [{"claim": "...", "supported": bool, "evidence": "...", "contradicted": bool}],
+           "claim_support_ratio": float,
+           "contradiction_count": int,
+           "unsupported_numeric_claims": int,
+           "grounded": bool,
+           "confidence": str
+         }
+    """
+    ans_lower = answer.lower().strip()
+    if "could not find this information in the provided document" in ans_lower or not context.strip():
+        return {
+            "claims": [],
+            "claim_support_ratio": 0.0,
+            "contradiction_count": 0,
+            "unsupported_numeric_claims": 0,
+            "grounded": False,
+            "confidence": "Not Grounded",
+            "evaluation_source": "abstention_rule"
+        }
+
+    # 1. Deterministic numerical verification
+    ans_nums = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", answer))
+    ctx_nums = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", context))
+    real_ans_nums = {n for n in ans_nums if not re.match(r"^[1-9]\.?$", n)}
+    unsupported_nums = [n for n in real_ans_nums if n not in ctx_nums]
+
+    # 2. Independent LLM evaluator with structured schema
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0)
+
+    system_prompt = (
+        "You are an objective grounding evaluator. Your job is to verify if the claims in the generated answer "
+        "are strictly supported by the provided document context.\n\n"
+        "Instructions:\n"
+        "1. Extract the atomic factual claims made in the answer.\n"
+        "2. For each claim, evaluate:\n"
+        "   - \"claim\": concise claim text\n"
+        "   - \"supported\": true if directly supported or faithfully paraphrased by the context; false if unsupported or outside context\n"
+        "   - \"evidence\": quote or reference from context supporting the claim (empty string if unsupported)\n"
+        "   - \"contradicted\": true if directly contradicted by context; false otherwise\n"
+        "3. Check for any unsupported numerical claims (numbers, metrics, percentages not substantiated by context).\n"
+        "4. Output JSON ONLY matching this structure:\n"
+        "{\n"
+        "  \"claims\": [\n"
+        "    {\"claim\": \"...\", \"supported\": true, \"evidence\": \"...\", \"contradicted\": false}\n"
+        "  ],\n"
+        "  \"unsupported_numeric_claims\": 0,\n"
+        "  \"contradiction_count\": 0\n"
+        "}"
+    )
+
+    user_prompt = (
+        f"User Query: {query}\n\n"
+        f"Retrieved Document Context:\n{context}\n\n"
+        f"Generated Answer:\n{answer}\n\n"
+        f"Evaluate and return JSON:"
+    )
+
+    try:
+        res = llm.invoke([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        content = res.content
+        if isinstance(content, list):
+            content = " ".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+        
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not json_match:
+            raise ValueError("No valid JSON structure found in evaluator output.")
+
+        data = json.loads(json_match.group(0))
+        claims = data.get("claims", [])
+        contradiction_count = int(data.get("contradiction_count", 0))
+        unsupported_numeric = max(len(unsupported_nums), int(data.get("unsupported_numeric_claims", 0)))
+
+        # Also tally contradictions directly from claim list
+        claims_contradicted = sum(1 for c in claims if c.get("contradicted"))
+        contradiction_count = max(contradiction_count, claims_contradicted)
+
+        supported_claims = sum(1 for c in claims if c.get("supported") and not c.get("contradicted"))
+        total_claims = max(1, len(claims))
+        claim_support_ratio = round(supported_claims / total_claims, 4)
+
+        # Grounding decision
+        is_grounded = (claim_support_ratio >= 0.75) and (contradiction_count == 0) and (unsupported_numeric == 0)
+
+        # Confidence decision
+        if is_grounded and claim_support_ratio >= 0.85:
+            confidence = "High"
+        elif is_grounded:
+            confidence = "Medium"
+        elif claim_support_ratio >= 0.40:
+            confidence = "Low"
+        else:
+            confidence = "Not Grounded"
+
+        return {
+            "claims": claims,
+            "claim_support_ratio": claim_support_ratio,
+            "contradiction_count": contradiction_count,
+            "unsupported_numeric_claims": unsupported_numeric,
+            "grounded": is_grounded,
+            "confidence": confidence,
+            "evaluation_source": "llm_evaluator"
+        }
+    except Exception as e:
+        print(f"Independent LLM evaluator encountered error ({e}); using lexical fallback.")
+        return compute_lexical_fallback(query, answer, context)
+
+
 def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
-    """Compiles the LangGraph RAG workflow with hybrid retrieval and strict grounding."""
+    """Compiles the LangGraph RAG workflow with hybrid retrieval, generation, and independent grounding evaluation."""
     # Ensure in-memory BM25 index is loaded
     load_chunks_corpus()
 
@@ -570,7 +676,6 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
     def generate_node(state: GraphState) -> dict:
         query = state["question"]
         context = state["context"]
-        retrieved_chunks = state.get("retrieved_chunks", [])
 
         llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", max_retries=6)
 
@@ -610,22 +715,34 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
         else:
             ans = str(response.content).strip()
 
-        # Evidence-coverage-based grounding and confidence calculation
-        eval_metrics = compute_grounding_confidence(query, ans, context, retrieved_chunks)
+        return {"answer": ans}
+
+    def evaluate_node(state: GraphState) -> dict:
+        query = state["question"]
+        answer = state["answer"]
+        context = state["context"]
+
+        # Independent grounding evaluation receiving ONLY query, answer, context
+        eval_result = evaluate_grounding(query, answer, context)
 
         return {
-            "answer": ans,
-            "answer_grounded": eval_metrics["answer_grounded"],
-            "answer_confidence": eval_metrics["answer_confidence"]
+            "answer_grounded": eval_result["grounded"],
+            "answer_confidence": eval_result["confidence"],
+            "claims": eval_result.get("claims", []),
+            "claim_support_ratio": eval_result.get("claim_support_ratio", 0.0),
+            "unsupported_numeric_claims": eval_result.get("unsupported_numeric_claims", 0),
+            "contradiction_count": eval_result.get("contradiction_count", 0)
         }
 
     workflow = StateGraph(GraphState)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
+    workflow.add_node("evaluate", evaluate_node)
 
     workflow.add_edge(START, "retrieve")
     workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", END)
+    workflow.add_edge("generate", "evaluate")
+    workflow.add_edge("evaluate", END)
 
     return workflow.compile()
 

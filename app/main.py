@@ -35,6 +35,10 @@ class ChatResponse(BaseModel):
     retrieval_score: float = 0.0
     answer_grounded: bool = True
     answer_confidence: str = "High"
+    claim_support_ratio: float = 1.0
+    unsupported_numeric_claims: int = 0
+    contradiction_count: int = 0
+    claims: list[dict] = []
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
@@ -73,7 +77,11 @@ async def chat_endpoint(request: ChatRequest):
             confidence=result.get("confidence", 0.0),
             retrieval_score=result.get("retrieval_score", 0.0),
             answer_grounded=result.get("answer_grounded", True),
-            answer_confidence=result.get("answer_confidence", "High")
+            answer_confidence=result.get("answer_confidence", "High"),
+            claim_support_ratio=result.get("claim_support_ratio", 1.0),
+            unsupported_numeric_claims=result.get("unsupported_numeric_claims", 0),
+            contradiction_count=result.get("contradiction_count", 0),
+            claims=result.get("claims", [])
         )
     except Exception as e:
         # Catch unexpected pipeline exceptions and return them as standard server errors

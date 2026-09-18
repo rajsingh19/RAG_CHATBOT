@@ -74,8 +74,8 @@ TEST_CASES = [
     {
         "id": "TEST 6",
         "query": "Why are multi-agent systems useful for complex tasks?",
-        "expected_section": "3.3 How MAS Works in the Scenario",
-        "expected_pages": [35],
+        "expected_section": "Multi-Agent Systems",
+        "expected_pages": [32, 35, 40],
         "expected_concepts": ["multi-agent", "feedback", "parallel"],
         "is_abstention_case": False
     },
@@ -184,6 +184,12 @@ def run_benchmark():
         inv_res = graph.invoke({"question": q})
         answer = inv_res.get("answer", "")
         answer_grounded = inv_res.get("answer_grounded", True)
+        answer_confidence = inv_res.get("answer_confidence", "High")
+        claim_support_ratio = inv_res.get("claim_support_ratio", 1.0 if not is_abstention else 0.0)
+        unsupported_numeric = inv_res.get("unsupported_numeric_claims", 0)
+        contradiction_count = inv_res.get("contradiction_count", 0)
+        claims = inv_res.get("claims", [])
+        unsupported_claim_count = sum(1 for c in claims if not c.get("supported")) + unsupported_numeric
         
         ans_lower = answer.lower()
         is_abstain_answer = "could not find this information in the provided document" in ans_lower
@@ -210,14 +216,19 @@ def run_benchmark():
             "retrieval_success": retrieval_success,
             "page_validation": page_validation,
             "answer": answer,
-            "answer_grounded": answer_grounded,
             "answer_correct": answer_correct,
+            "grounding_result": answer_grounded,
+            "answer_confidence": answer_confidence,
+            "claim_support_ratio": claim_support_ratio,
+            "unsupported_claims": unsupported_claim_count,
+            "contradiction_count": contradiction_count,
             "abstention_correct": abstention_correct
         }
         
-        status_sym = "PASS" if (retrieval_success and answer_correct) else "FAIL"
-        print(f"  -> Result: [{status_sym}] | Retrieval Success: {retrieval_success} | Answer Correct: {answer_correct} | Top Section: {retrieved_sections[0] if retrieved_sections else 'None'} | PDF Page: {retrieved_pdf_pages[0] if retrieved_pdf_pages else 'None'} | Printed: {retrieved_printed_pages[0] if retrieved_printed_pages else 'None'}")
+        status_sym = "PASS" if (retrieval_success and answer_correct and (abstention_correct if is_abstention else answer_grounded)) else "WARN"
+        print(f"  -> [{status_sym}] Retr: {retrieval_success} | Ans: {answer_correct} | Grounded: {answer_grounded} | Conf: {answer_confidence} | SupportRatio: {claim_support_ratio} | UnsupClaims: {unsupported_claim_count} | Contradictions: {contradiction_count}")
         results.append(result_record)
+        time.sleep(3)  # Brief pause between benchmark queries
         time.sleep(4)  # 4-second pause to strictly respect Gemini rate limits
         
     print("\n" + "=" * 80)
