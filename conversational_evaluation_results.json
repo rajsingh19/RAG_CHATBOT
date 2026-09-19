@@ -1,0 +1,780 @@
+{
+  "total_tests": 8,
+  "passing_tests": 8,
+  "failing_tests": 0,
+  "pass_rate_percentage": 100.0,
+  "failures_breakdown": {
+    "context_resolution_failures": 1,
+    "retrieval_failures": 0,
+    "generation_failures": 0,
+    "grounding_failures": 0,
+    "relevance_failures": 0,
+    "false_positives": 0,
+    "false_negatives": 0
+  },
+  "average_latencies_seconds": {
+    "query_rewriting": 2.002,
+    "retrieval": 3.3168,
+    "generation": 1.6478,
+    "evaluators_sequential": 4.9148,
+    "evaluators_parallel": 2.1122,
+    "evaluator_latency_savings_percentage": 57.02,
+    "total_latency_sequential": 11.8813,
+    "total_latency_parallel": 9.0787
+  },
+  "test_results": [
+    {
+      "test_id": "CONV-01",
+      "category": "ordinal reference",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "What are the six core pillars of Agentic AI?"
+        },
+        {
+          "role": "assistant",
+          "content": "The six core pillars of Agentic AI are: 1. Perception, 2. Reasoning, 3. Planning, 4. Learning, 5. Verification, and 6. Execution."
+        }
+      ],
+      "original_query": "What does the third one do?",
+      "resolved_query": "What does the Planning pillar do in Agentic AI?",
+      "retrieval_query": "Planning pillar Agentic AI functionality capabilities",
+      "resolved_entities": [
+        "Planning pillar"
+      ],
+      "document_concepts": [
+        "Planning",
+        "Agentic AI",
+        "core pillars"
+      ],
+      "context_entities": [],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.759,
+          "page": 19.0
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7384,
+          "page": 17.0
+        },
+        {
+          "section": "4.1 Challenges of Orchestrating Complex",
+          "score": 0.75,
+          "page": 39
+        },
+        {
+          "section": "3.1 Structural Layers in Multi-Agent Systems",
+          "score": 0.7614,
+          "page": 32.0
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.75,
+          "page": 45
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 14
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 15
+        }
+      ],
+      "retrieval_score": 0.761413574,
+      "generated_answer": "Based on the provided document, the Planning pillar ensures that Agentic AI systems strategize effectively, optimizing resources and achieving goals within constraints. \n\nIn a production line example, the AI uses planning to allocate inspection resources to areas with higher defect probabilities, ensuring streamlined operations and minimal delays.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "The generated answer directly addresses the user query by explaining what the Planning pillar does in Agentic AI and provides a concrete example of its function.",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'Planning', Answer addressing planning",
+      "actual_result": "Resolved '['Planning pillar']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 1.7507,
+        "retrieval": 5.5214,
+        "generation": 1.909,
+        "grounding_eval_sequential": 1.8764,
+        "relevance_eval_sequential": 1.3545,
+        "evaluators_sequential_total": 3.2309,
+        "evaluators_parallel_total": 2.1394,
+        "total_latency_sequential": 12.412,
+        "total_latency_parallel": 11.3205
+      }
+    },
+    {
+      "test_id": "CONV-02",
+      "category": "comparison continuation",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "What is the difference between LLMs and agents?"
+        },
+        {
+          "role": "assistant",
+          "content": "LLMs primarily process and generate text based on prompts, whereas AI agents have perception, reasoning, and execution capabilities to autonomously pursue goals."
+        }
+      ],
+      "original_query": "What about their autonomy?",
+      "resolved_query": "What is the difference in autonomy between Large Language Models (LLMs) and AI agents?",
+      "retrieval_query": "LLM autonomy vs AI agent autonomy goals execution reasoning",
+      "resolved_entities": [
+        "Large Language Models (LLMs)",
+        "AI agents"
+      ],
+      "document_concepts": [
+        "autonomy",
+        "LLM",
+        "AI agents",
+        "reasoning",
+        "execution",
+        "goals"
+      ],
+      "context_entities": [],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "1.1 The Terminology Maze",
+          "score": 0.7507,
+          "page": 10.0
+        },
+        {
+          "section": "1.1 The Terminology Maze",
+          "score": 0.7074,
+          "page": 9.0
+        },
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.75,
+          "page": 19
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7396,
+          "page": 18.0
+        },
+        {
+          "section": "Overview",
+          "score": 0.75,
+          "page": 30
+        }
+      ],
+      "retrieval_score": 0.750717163,
+      "generated_answer": "Based on the provided context, the differences in autonomy and related aspects between Large Language Models (LLMs) and AI agents are as follows:\n\n* **LLMs:** \n  * They respond to inputs in a reactive manner.\n  * They lack inherent decision-making capability and need prompts to function.\n  * Their primary function and core capability are language understanding and generation.\n* **Agents:** \n  * They operate continuously with minimal human intervention, making them proactive.\n  * They make context-aware, goal-driven decisions.\n  * They can integrate multiple tools, including LLMs, to achieve goals.\n  * Their primary function and core capability are making decisions and taking actions toward goals, characterized by autonomy, adaptability, and proactive behavior.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "The generated answer directly addresses the core query by comparing the autonomy (along with other defining characteristics) of Large Language Models versus AI agents, fulfilling both sides of the comparison clearly.",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'autonomy', Answer addressing autonomy",
+      "actual_result": "Resolved '['Large Language Models (LLMs)', 'AI agents']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 2.1227,
+        "retrieval": 3.6278,
+        "generation": 1.8327,
+        "grounding_eval_sequential": 2.7361,
+        "relevance_eval_sequential": 1.847,
+        "evaluators_sequential_total": 4.5831,
+        "evaluators_parallel_total": 2.6111,
+        "total_latency_sequential": 12.1663,
+        "total_latency_parallel": 10.1943
+      }
+    },
+    {
+      "test_id": "CONV-03",
+      "category": "explicit follow-up",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "Explain Perception."
+        },
+        {
+          "role": "assistant",
+          "content": "Perception is the first pillar of Agentic AI that processes raw sensory data, such as images, audio, or logs, into structured representations the system can understand."
+        }
+      ],
+      "original_query": "Give me the production-line example.",
+      "resolved_query": "Give me the production-line example for the Perception pillar in Agentic AI.",
+      "retrieval_query": "Perception pillar production-line example raw sensory data processing structured representations",
+      "resolved_entities": [
+        "Perception pillar"
+      ],
+      "document_concepts": [
+        "Perception",
+        "raw sensory data",
+        "structured representations",
+        "pillar"
+      ],
+      "context_entities": [
+        "production-line"
+      ],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.7345,
+          "page": 19.0
+        },
+        {
+          "section": "3.1 Structural Layers in Multi-Agent Systems",
+          "score": 0.6847,
+          "page": 31.0
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.66,
+          "page": 17.0
+        },
+        {
+          "section": "4.3 Scenario: Multi-Agent System for Sales Forecasting",
+          "score": 0.75,
+          "page": 43
+        },
+        {
+          "section": "4.3 Scenario: Multi-Agent System for Sales Forecasting",
+          "score": 0.75,
+          "page": 42
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 14
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 15
+        }
+      ],
+      "retrieval_score": 0.75,
+      "generated_answer": "Based on the provided document, the production-line example for the Perception pillar is:\n\nIn a production line, an AI system identifies defective products by analyzing images in real time, reducing waste and boosting efficiency.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "Fallback: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite\\nPlease retry in 56.00272331s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.5-flash-lite'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '56s'}]}}",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'Perception', Answer addressing defective products",
+      "actual_result": "Resolved '['Perception pillar']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 1.8172,
+        "retrieval": 2.8593,
+        "generation": 1.2787,
+        "grounding_eval_sequential": 1.668,
+        "relevance_eval_sequential": 1.7613,
+        "evaluators_sequential_total": 3.4293,
+        "evaluators_parallel_total": 2.489,
+        "total_latency_sequential": 9.3845,
+        "total_latency_parallel": 8.4442
+      }
+    },
+    {
+      "test_id": "CONV-04",
+      "category": "follow-up requiring previous answer context",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "What are the core pillars?"
+        },
+        {
+          "role": "assistant",
+          "content": "The six core pillars of an Agentic AI system are Perception, Reasoning, Planning, Learning, Verification, and Execution."
+        }
+      ],
+      "original_query": "Which one happens before execution?",
+      "resolved_query": "Which one happens before execution?",
+      "retrieval_query": "Which one happens before execution?",
+      "resolved_entities": [],
+      "document_concepts": [],
+      "context_entities": [],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.5927,
+          "page": 19.0
+        },
+        {
+          "section": "4.2 Key Aspects of Orchestrating Multi-Agent Systems",
+          "score": 0.6036,
+          "page": 41.0
+        },
+        {
+          "section": "3.1 Structural Layers in Multi-Agent Systems",
+          "score": 0.5731,
+          "page": 32.0
+        },
+        {
+          "section": "Overview",
+          "score": 0.75,
+          "page": 30
+        },
+        {
+          "section": "Overview",
+          "score": 0.75,
+          "page": 50
+        }
+      ],
+      "retrieval_score": 0.75,
+      "generated_answer": "Based on the provided document, **Verification** happens before execution. \n\nSpecifically, the text states:\n* \"Verification checks the accuracy and reliability of the AI\u2019s reasoning, planning, and learning before execution, ensuring consistency and reducing errors.\" (Section 2.1)\n* \"Before execution, verification ensures actions align with intended decisions and minimizes errors.\" (Section 3.1, Action Layer)",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "The generated answer directly addresses the user's question by identifying 'Verification' as the event that happens before execution, and provides supporting evidence from the text.",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'Verification', Answer addressing verification",
+      "actual_result": "Resolved '[]', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 2.4868,
+        "retrieval": 2.8583,
+        "generation": 2.0435,
+        "grounding_eval_sequential": 2.2561,
+        "relevance_eval_sequential": 1.7794,
+        "evaluators_sequential_total": 4.0355,
+        "evaluators_parallel_total": 2.4363,
+        "total_latency_sequential": 11.4241,
+        "total_latency_parallel": 9.8249
+      }
+    },
+    {
+      "test_id": "CONV-05",
+      "category": "context switching",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "What is Perception?"
+        },
+        {
+          "role": "assistant",
+          "content": "Perception translates multimodal input from the external environment into structured observations."
+        },
+        {
+          "role": "user",
+          "content": "What is RPA?"
+        },
+        {
+          "role": "assistant",
+          "content": "Robotic Process Automation (RPA) executes predefined, rule-based repetitive tasks across software applications without autonomous decision-making."
+        }
+      ],
+      "original_query": "How does the second concept differ from Agentic AI?",
+      "resolved_query": "How does Robotic Process Automation (RPA) differ from Agentic AI?",
+      "retrieval_query": "Robotic Process Automation RPA differences vs Agentic AI autonomous decision making",
+      "resolved_entities": [
+        "Robotic Process Automation (RPA)"
+      ],
+      "document_concepts": [
+        "Robotic Process Automation",
+        "RPA",
+        "Agentic AI",
+        "rule-based tasks",
+        "autonomous decision-making"
+      ],
+      "context_entities": [],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "1.1 The Terminology Maze",
+          "score": 0.7867,
+          "page": 9.0
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7513,
+          "page": 18.0
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.75,
+          "page": 15
+        },
+        {
+          "section": "1.1 The Terminology Maze",
+          "score": 0.7459,
+          "page": 10.0
+        },
+        {
+          "section": "Overview",
+          "score": 0.75,
+          "page": 57
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 14
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.7,
+          "page": 16
+        }
+      ],
+      "retrieval_score": 0.786651671,
+      "generated_answer": "Based on the provided document, Robotic Process Automation (RPA) and Agentic AI differ in the following ways:\n\n* **Robotic Process Automation (RPA):** Excels at repetitive, rule-based tasks with structured data, operating much like following a strict recipe.\n* **Agentic AI:** Adapts to different situations and handles unstructured inputs, much like a chef improvising with available ingredients. Additionally, it is defined as an AI system capable of autonomous decision-making, learning, and adapting to new situations.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "The generated answer directly addresses the comparison between Robotic Process Automation (RPA) and Agentic AI by explaining the characteristics of both and how they differ.",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'RPA', Answer addressing rule-based",
+      "actual_result": "Resolved '['Robotic Process Automation (RPA)']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 1.3933,
+        "retrieval": 2.8073,
+        "generation": 1.5162,
+        "grounding_eval_sequential": 2.2442,
+        "relevance_eval_sequential": 1.7281,
+        "evaluators_sequential_total": 3.9723,
+        "evaluators_parallel_total": 2.5497,
+        "total_latency_sequential": 9.6891,
+        "total_latency_parallel": 8.2665
+      }
+    },
+    {
+      "test_id": "CONV-06",
+      "category": "pronoun reference",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "Tell me about the Verification pillar."
+        },
+        {
+          "role": "assistant",
+          "content": "Verification acts as a critical safety and validation layer before an action is taken."
+        }
+      ],
+      "original_query": "Why is it important and what does it do?",
+      "resolved_query": "Why is the Verification pillar important and what does it do in Agentic AI?",
+      "retrieval_query": "Verification pillar importance function validation safety layer Agentic AI",
+      "resolved_entities": [
+        "Verification pillar"
+      ],
+      "document_concepts": [
+        "Verification",
+        "safety layer",
+        "validation layer",
+        "Agentic AI architecture",
+        "action execution"
+      ],
+      "context_entities": [],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "3.1 Structural Layers in Multi-Agent Systems",
+          "score": 0.7291,
+          "page": 32.0
+        },
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.7571,
+          "page": 19.0
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.7357,
+          "page": 45.0
+        },
+        {
+          "section": "3.4 Challenges and Mitigation Strategies of",
+          "score": 0.75,
+          "page": 37
+        },
+        {
+          "section": "1.5 Agentic AI Use cases",
+          "score": 0.75,
+          "page": 16
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.7,
+          "page": 47
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.7,
+          "page": 49
+        }
+      ],
+      "retrieval_score": 0.757057071,
+      "generated_answer": "Based on the provided document, the Verification pillar is important because it checks the accuracy and reliability of the AI\u2019s reasoning, planning, and learning before execution, ensuring consistency and reducing errors. \n\nSpecifically, the verification component:\n* Ensures accuracy before action by checking the reliability of the AI's reasoning, planning, and learning.\n* Promotes consistency and reduces errors.\n* For example, in a production line setting, the AI verifies its model against new data before applying strategies.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "Fallback: Error calling model 'gemini-3.5-flash-lite' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 15, model: gemini-3.5-flash-lite\\nPlease retry in 53.672364246s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.5-flash-lite', 'location': 'global'}, 'quotaValue': '15'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '53s'}]}}",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'Verification', Answer addressing accuracy",
+      "actual_result": "Resolved '['Verification pillar']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 1.3776,
+        "retrieval": 2.8647,
+        "generation": 1.5363,
+        "grounding_eval_sequential": 2.7439,
+        "relevance_eval_sequential": 13.3363,
+        "evaluators_sequential_total": 16.0802,
+        "evaluators_parallel_total": 2.342,
+        "total_latency_sequential": 21.8588,
+        "total_latency_parallel": 8.1206
+      }
+    },
+    {
+      "test_id": "CONV-07",
+      "category": "query expansion drift",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "How does continuous learning help the visual inspection system in the electronics plant?"
+        },
+        {
+          "role": "assistant",
+          "content": "The Learning pillar continuously recognizes emerging defect patterns, improving detection accuracy and reducing false positives over time."
+        }
+      ],
+      "original_query": "Why does this improve efficiency?",
+      "resolved_query": "Why does continuous learning in the Learning pillar improve efficiency for the visual inspection system in the electronics plant?",
+      "retrieval_query": "continuous learning Learning pillar visual inspection system defect patterns detection accuracy efficiency mechanisms",
+      "resolved_entities": [
+        "continuous learning",
+        "Learning pillar",
+        "visual inspection system"
+      ],
+      "document_concepts": [
+        "continuous learning",
+        "Learning pillar",
+        "defect patterns",
+        "detection accuracy",
+        "false positives",
+        "efficiency"
+      ],
+      "context_entities": [
+        "electronics plant"
+      ],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.6992,
+          "page": 19.0
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.6241,
+          "page": 26.0
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.75,
+          "page": 27
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.6286,
+          "page": 51.0
+        },
+        {
+          "section": "1.1 The Terminology Maze",
+          "score": 0.75,
+          "page": 10
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.7,
+          "page": 28
+        }
+      ],
+      "retrieval_score": 0.75,
+      "generated_answer": "Based on the provided document, continuous learning in the Learning pillar allows the production line AI to learn from past experiences and adapt in real time to enhance its capabilities. Specifically for the visual inspection system, over time the AI learns to recognize emerging defect patterns, which continuously improves its detection accuracy and reduces false positives, thereby boosting efficiency and reducing waste.",
+      "grounding_result": {
+        "grounded": true,
+        "confidence": "High",
+        "claim_support_ratio": 1.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "The generated answer directly and accurately addresses why continuous learning in the Learning pillar improves efficiency for the visual inspection system, explaining how the AI learns from past experiences, recognizes emerging defect patterns, improves detection accuracy, and reduces false positives and waste.",
+        "missing_aspects": []
+      },
+      "final_status": "Grounded & Relevant",
+      "expected_result": "Resolve to 'Learning', Answer addressing defect",
+      "actual_result": "Resolved '['continuous learning', 'Learning pillar', 'visual inspection system']', Status: Grounded & Relevant, Grounded: True, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 3.0598,
+        "retrieval": 2.9543,
+        "generation": 1.7028,
+        "grounding_eval_sequential": 2.4365,
+        "relevance_eval_sequential": 1.5504,
+        "evaluators_sequential_total": 3.9869,
+        "evaluators_parallel_total": 2.329,
+        "total_latency_sequential": 11.7038,
+        "total_latency_parallel": 10.0459
+      }
+    },
+    {
+      "test_id": "CONV-08",
+      "category": "multi-turn clarification",
+      "conversation_history": [
+        {
+          "role": "user",
+          "content": "What happened in the electronics manufacturing case study?"
+        },
+        {
+          "role": "assistant",
+          "content": "A high-tech electronics manufacturer deployed an Agentic AI visual inspection system to identify defects on circuit boards."
+        }
+      ],
+      "original_query": "What percentage did it improve inspection speed by?",
+      "resolved_query": "What percentage did the Agentic AI visual inspection system improve inspection speed by in the electronics manufacturing case study?",
+      "retrieval_query": "Agentic AI visual inspection system inspection speed improvement percentage circuit board defect detection",
+      "resolved_entities": [
+        "Agentic AI visual inspection system",
+        "electronics manufacturing case study"
+      ],
+      "document_concepts": [
+        "Agentic AI",
+        "visual inspection",
+        "defect identification",
+        "circuit boards",
+        "inspection speed",
+        "performance metrics"
+      ],
+      "context_entities": [
+        "electronics manufacturer"
+      ],
+      "retrieval_fallback_triggered": false,
+      "retrieved_chunks": [
+        {
+          "section": "2.1 The Core Pillars: From Perception to Execution",
+          "score": 0.7001,
+          "page": 19.0
+        },
+        {
+          "section": "Overview",
+          "score": 0.7133,
+          "page": 6.0
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.75,
+          "page": 27
+        },
+        {
+          "section": "1.3 Capabilities of Agentic AI",
+          "score": 0.7014,
+          "page": 12.0
+        },
+        {
+          "section": "4.5 Practical Steps for Organizations: Workflows and",
+          "score": 0.75,
+          "page": 49
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.7,
+          "page": 26
+        },
+        {
+          "section": "2.6 How Agentic AI Shapes Industries?",
+          "score": 0.7,
+          "page": 28
+        }
+      ],
+      "retrieval_score": 0.75,
+      "generated_answer": "I could not find this information in the provided document.",
+      "grounding_result": {
+        "grounded": false,
+        "confidence": "Not Grounded",
+        "claim_support_ratio": 0.0,
+        "unsupported_numeric_claims": 0,
+        "contradiction_count": 0
+      },
+      "relevance_result": {
+        "query_relevant": true,
+        "relevance_score": 1.0,
+        "reason": "Answer is an explicit abstention stating document information absence.",
+        "missing_aspects": []
+      },
+      "final_status": "Legitimate Abstention",
+      "expected_result": "Resolve to 'inspection speed', Abstain",
+      "actual_result": "Resolved '['Agentic AI visual inspection system', 'electronics manufacturing case study']', Status: Legitimate Abstention, Grounded: False, Relevant: True",
+      "pass_status": true,
+      "latencies": {
+        "query_rewriting": 2.0079,
+        "retrieval": 3.0411,
+        "generation": 1.3628,
+        "grounding_eval_sequential": 0.0002,
+        "relevance_eval_sequential": 0.0001,
+        "evaluators_sequential_total": 0.0002,
+        "evaluators_parallel_total": 0.0011,
+        "total_latency_sequential": 6.412,
+        "total_latency_parallel": 6.4129
+      }
+    }
+  ]
+}

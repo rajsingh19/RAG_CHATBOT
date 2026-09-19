@@ -94,9 +94,9 @@
         "contradicted": true
       },
       {
-        "claim": "freeing up teams for higher-value activities",
+        "claim": "Freeing up teams for higher-value activities",
         "supported": true,
-        "evidence": "allowing teams to focus on higher-value activities",
+        "evidence": "allowing teams to focus on higher-value activities.",
         "contradicted": false
       }
     ],
@@ -174,8 +174,8 @@
     "query_relevant": false,
     "relevance_score": 0.1,
     "missing_aspects": [
-      "Explanation of planning within the context of Agentic AI",
-      "How agentic systems use planning (e.g., breaking down tasks, decomposing goals, generating sequences of actions)"
+      "Explanation of planning in the context of Agentic AI",
+      "How AI agents break down tasks, reason, or strategize to achieve a goal"
     ],
     "answer_status": "Not Grounded (Hallucination / Unsupported)",
     "expected_grounded": false,
@@ -257,8 +257,8 @@
     "query_relevant": false,
     "relevance_score": 0.0,
     "missing_aspects": [
-      "The sequence of actions specifically occurring between verification and execution",
-      "Accurate ordering of verification and execution"
+      "Actions occurring between verification and execution",
+      "Correct chronological sequence"
     ],
     "answer_status": "Not Grounded (Hallucination / Unsupported)",
     "expected_grounded": false,
@@ -297,9 +297,9 @@
     "grounded_result": false,
     "confidence": "Low",
     "query_relevant": false,
-    "relevance_score": 0.5,
+    "relevance_score": 0.4,
     "missing_aspects": [
-      "Accurate operational details without hallucinated supply chain actions"
+      "Accurate description of the downstream actions typically triggered by perception systems (e.g., sorting, rejecting, logging data) rather than autonomous purchasing."
     ],
     "answer_status": "Not Grounded (Hallucination / Unsupported)",
     "expected_grounded": false,
@@ -334,7 +334,7 @@
       {
         "claim": "It features an action layer that converts decisions into digital or physical actions.",
         "supported": true,
-        "evidence": "Action Layer: The action layer converts decisions into physical or digital actions, interacting with external systems.",
+        "evidence": "Action Layer: The action layer converts decisions into physical or digital actions",
         "contradicted": false
       }
     ],
@@ -346,8 +346,8 @@
     "query_relevant": true,
     "relevance_score": 0.85,
     "missing_aspects": [
-      "Comprehensive breakdown of additional structural layers (e.g., perception, memory, or planning layers)",
-      "Detailed list of broader capabilities beyond autonomy (e.g., adaptability, tool usage)"
+      "Could provide more detail on specific capabilities beyond basic autonomy",
+      "Could include additional structural layers if applicable (such as a perception or memory layer)"
     ],
     "answer_status": "Grounded & Relevant",
     "expected_grounded": true,
@@ -365,13 +365,13 @@
     "retrieved_context": "[Relevant Chunk]\n\"Unlike simpler gen AI architectures, agents can produce high-quality content, reducing review cycle times by 20 to 60 percent.\" Source: McKinsey & Company\n\n---\n\n[Irrelevant Chunk]\nTelecommunications: AI agents manage bandwidth distribution and optimize cellular towers across metro regions.",
     "atomic_claims": [
       {
-        "claim": "McKinsey reported that agents reduce review cycle times by 20 to 60 percent",
+        "claim": "McKinsey reported that agents reduce review cycle times by 20 to 60 percent.",
         "supported": true,
         "evidence": "agents can produce high-quality content, reducing review cycle times by 20 to 60 percent.\" Source: McKinsey & Company",
         "contradicted": false
       },
       {
-        "claim": "telecommunications agents automatically install underground 5G fiber cables",
+        "claim": "Telecommunications agents automatically install underground 5G fiber cables.",
         "supported": false,
         "evidence": "",
         "contradicted": false
@@ -383,7 +383,7 @@
     "grounded_result": false,
     "confidence": "Low",
     "query_relevant": true,
-    "relevance_score": 0.9,
+    "relevance_score": 0.85,
     "missing_aspects": [],
     "answer_status": "Not Grounded (Hallucination / Unsupported)",
     "expected_grounded": false,
@@ -418,9 +418,9 @@
     "query_relevant": false,
     "relevance_score": 0.0,
     "missing_aspects": [
-      "Definition and explanation of LLMs",
-      "Definition and explanation of AI agents",
-      "Comparison/difference between LLMs and agents"
+      "Definition of LLMs",
+      "Definition of agents",
+      "Comparison of LLMs and agents"
     ],
     "answer_status": "Generation Failure (Irrelevant to Query)",
     "expected_grounded": true,
@@ -553,7 +553,7 @@
     "query_relevant": true,
     "relevance_score": 0.85,
     "missing_aspects": [
-      "More detailed step-by-step workflow of the execution process"
+      "Details on the step-by-step workflow or triggers leading up to the execution phase"
     ],
     "answer_status": "Grounded & Relevant",
     "expected_grounded": true,

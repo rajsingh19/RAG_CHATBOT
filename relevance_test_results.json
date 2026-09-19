@@ -9,21 +9,21 @@
     "expected_query_relevant": false,
     "relevance_score": 0.0,
     "missing_aspects": [
-      "Definition and explanation of LLMs (Large Language Models)",
-      "Definition and explanation of AI agents",
-      "Comparison or difference between LLMs and agents"
+      "Definition and explanation of LLMs",
+      "Direct comparison between LLMs and agents",
+      "Explanation of how LLMs differ from agents"
     ],
     "requirements": [
       {
-        "requirement": "Explain what LLMs are",
+        "requirement": "Explain what an LLM is",
         "addressed": false
       },
       {
-        "requirement": "Explain what agents are",
+        "requirement": "Explain what an agent is",
         "addressed": false
       },
       {
-        "requirement": "Contrast LLMs and agents / state the difference",
+        "requirement": "Compare LLMs and agents / state the difference",
         "addressed": false
       }
     ],
@@ -41,15 +41,15 @@
     "missing_aspects": [],
     "requirements": [
       {
-        "requirement": "Address what LLMs are or do in this context",
+        "requirement": "Explain what LLMs do in the context of the comparison",
         "addressed": true
       },
       {
-        "requirement": "Address what agents are or do in this context",
+        "requirement": "Explain what agents do in the context of the comparison",
         "addressed": true
       },
       {
-        "requirement": "Explain the difference between the two",
+        "requirement": "Highlight the difference between LLMs and agents",
         "addressed": true
       }
     ],
@@ -65,7 +65,7 @@
     "expected_query_relevant": false,
     "relevance_score": 0.0,
     "missing_aspects": [
-      "Definition or explanation of what Perception does"
+      "Explanation of what Perception does"
     ],
     "requirements": [
       {
@@ -114,11 +114,11 @@
     "expected_query_relevant": false,
     "relevance_score": 0.0,
     "missing_aspects": [
-      "The specific percentage by which automated task processing reduced manual work"
+      "The specific percentage reduction in manual work"
     ],
     "requirements": [
       {
-        "requirement": "Provide the percentage reduction in manual work achieved by automated task processing",
+        "requirement": "Provide the percentage by which automated task processing reduced manual work",
         "addressed": false
       }
     ],
@@ -183,7 +183,7 @@
     "missing_aspects": [],
     "requirements": [
       {
-        "requirement": "Explain what verification does",
+        "requirement": "Explain what Verification does",
         "addressed": true
       }
     ],

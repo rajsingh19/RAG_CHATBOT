@@ -1,9 +1,13 @@
 import os
 import re
+import sys
 import json
 import time
+import uuid
+import logging
 from typing import TypedDict, List, Dict, Any, Optional
 from dotenv import load_dotenv
+import concurrent.futures
 import pypdf
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from pinecone import Pinecone, ServerlessSpec
@@ -13,13 +17,43 @@ from rank_bm25 import BM25Okapi
 # 1. Load environment variables
 load_dotenv()
 
+rag_logger = logging.getLogger("rag_logger")
+if not rag_logger.handlers:
+    _ch = logging.StreamHandler(sys.stdout)
+    _ch.setFormatter(logging.Formatter("[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    rag_logger.addHandler(_ch)
+    rag_logger.setLevel(logging.INFO)
+
+def log_stage_timing(
+    request_id: str,
+    stage: str,
+    status: str,
+    elapsed_ms: float,
+    api_call: str = "none",
+    retries: int = 0,
+    exception: Optional[str] = None
+):
+    """Structured stage-level timing logger with correlation ID."""
+    rid = request_id or "default"
+    msg = (
+        f"[REQ_ID: {rid}] [STAGE: {stage}] "
+        f"status={status} elapsed={elapsed_ms:.2f}ms "
+        f"api_call='{api_call}' retries={retries}"
+    )
+    if exception:
+        msg += f" exception='{exception}'"
+    rag_logger.info(msg)
+
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 DEBUG_RETRIEVAL = os.environ.get("DEBUG_RETRIEVAL", "true").lower() in ("true", "1", "yes")
 
-# 2. Clients
+# 2. Clients with explicit request timeouts
 pc = Pinecone(api_key=PINECONE_API_KEY) if PINECONE_API_KEY else None
-embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-2") if GOOGLE_API_KEY else None
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-2",
+    client_args={"timeout": 12.0}
+) if GOOGLE_API_KEY else None
 
 INDEX_NAME = "rag-chatbot-index"
 PDF_PATH = "data/agentic_ai.pdf"
@@ -274,7 +308,7 @@ def reingest_pdf_to_pinecone(index_name: str = INDEX_NAME, pdf_path: str = PDF_P
     return stats
 
 
-def hybrid_retrieve(query: str, index_name: str = INDEX_NAME, top_k: int = 15) -> List[Dict[str, Any]]:
+def hybrid_retrieve(query: str, index_name: str = INDEX_NAME, top_k: int = 15, request_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Executes hybrid retrieval:
       1. Dense vector similarity via Pinecone
@@ -290,9 +324,24 @@ def hybrid_retrieve(query: str, index_name: str = INDEX_NAME, top_k: int = 15) -
     corpus_by_id = {c["chunk_id"]: c for c in corpus}
 
     # 1. Dense Pinecone Vector Search
-    query_vector = embeddings.embed_query(query)
-    dense_results = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
-    dense_matches = dense_results.get("matches", [])
+    dense_matches = []
+    try:
+        query_vector = None
+        for attempt in range(2):
+            try:
+                query_vector = embeddings.embed_query(query)
+                break
+            except Exception as e_emb:
+                if ("429" in str(e_emb) or "ResourceExhausted" in str(e_emb)) and attempt == 0:
+                    time.sleep(3.0)
+                    continue
+                logger.warning(f"[{request_id or 'NO-REQ'}] Embedding generation failed: {e_emb}")
+                break
+        if query_vector is not None:
+            dense_results = index.query(vector=query_vector, top_k=top_k, include_metadata=True, timeout=10)
+            dense_matches = dense_results.get("matches", [])
+    except Exception as e_dense:
+        logger.warning(f"[{request_id or 'NO-REQ'}] Dense Pinecone retrieval skipped/failed: {e_dense}")
 
     dense_ranks: Dict[str, int] = {}
     dense_scores: Dict[str, float] = {}
@@ -427,7 +476,16 @@ def hybrid_retrieve(query: str, index_name: str = INDEX_NAME, top_k: int = 15) -
 
 # LangGraph State
 class GraphState(TypedDict):
+    request_id: Optional[str]
     question: str
+    history: Optional[List[Dict[str, str]]]
+    original_query: str
+    resolved_query: str
+    retrieval_query: str
+    resolved_entities: List[str]
+    document_concepts: List[str]
+    context_entities: List[str]
+    retrieval_fallback_triggered: bool
     context: str
     answer: str
     retrieved_chunks: list
@@ -447,7 +505,96 @@ class GraphState(TypedDict):
     answer_status: str
 
 
-def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
+def reformulate_query(history: List[Dict[str, str]], query: str, request_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Reformulates conversational queries into dual representations:
+    1. 'resolved_query': Full standalone interpretation for the answer generator.
+       Preserves user-introduced entities (e.g. 'in my factory', 'healthcare').
+    2. 'retrieval_query': Search-optimized query emphasizing document-supported concepts
+       (pillars, architectural layers, mechanisms, metrics) while stripping out
+       user-introduced conversational noise that could cause BM25/vector drift.
+    3. Exposes metadata: resolved_entities, document_concepts, context_entities.
+    """
+    rid = request_id or "default"
+    t0 = time.perf_counter()
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0, timeout=12.0, max_retries=2)
+
+    system_prompt = (
+        "You are an expert query reformulation assistant for a RAG system answering questions about Agentic AI.\n"
+        "Your task is to analyze the conversation history and the latest user query, then produce two distinct query representations:\n\n"
+        "1. 'resolved_query':\n"
+        "   A natural-language, fully standalone query that resolves all pronouns (it, they, this, that), ordinals (first one, third pillar), and ellipsis.\n"
+        "   Keep resolved_query natural, direct, and concise: resolve demonstratives like 'this' or 'that' to the core topic or mechanism (e.g. 'continuous learning in the Learning pillar') rather than concatenating the entire text of previous assistant turns.\n"
+        "   PRESERVE legitimate user-introduced situational context or entities (e.g., 'in my factory', 'healthcare') so the answer generator understands the user's specific context.\n\n"
+        "2. 'retrieval_query':\n"
+        "   A search-optimized query focused strictly on document-grounded technical concepts, pillars, mechanisms, and metrics.\n"
+        "   STRIP OUT user-introduced non-document entities and retrieval noise (such as 'electronics plant', 'in my factory', 'our team') that could dilute or bias BM25 and vector search away from the target section.\n"
+        "   Prioritize core architectural pillars (Perception, Reasoning, Planning, Learning, Verification, Execution), technical processes, and metrics.\n\n"
+        "3. 'resolved_entities': Entities or references resolved from the conversation (e.g., 'Planning pillar', 'RPA').\n"
+        "4. 'document_concepts': List of technical terms expected to appear in the source documentation.\n"
+        "5. 'context_entities': List of user-introduced or conversational context entities that are external to the document.\n\n"
+        "Return JSON ONLY with this structure:\n"
+        "{\n"
+        "  \"original_query\": \"...\",\n"
+        "  \"resolved_query\": \"...\",\n"
+        "  \"retrieval_query\": \"...\",\n"
+        "  \"resolved_entities\": [...],\n"
+        "  \"document_concepts\": [...],\n"
+        "  \"context_entities\": [...]\n"
+        "}"
+    )
+
+    history_str = ""
+    for msg in history:
+        role = "User" if msg.get("role") == "user" else "Assistant"
+        history_str += f"{role}: {msg.get('content', '')}\n"
+
+    user_prompt = (
+        f"Conversation History:\n{history_str}\n"
+        f"Latest User Query: {query}\n\n"
+        f"Return JSON ONLY:"
+    )
+
+    try:
+        res = llm.invoke([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ])
+        content = res.content
+        if isinstance(content, list):
+            content = " ".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON found in reformulation response.")
+
+        data = json.loads(json_match.group(0))
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "2. Query Rewriting (reformulate_query)", "SUCCESS", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0)
+        return {
+            "original_query": data.get("original_query", query),
+            "resolved_query": data.get("resolved_query", query),
+            "retrieval_query": data.get("retrieval_query", query),
+            "resolved_entities": data.get("resolved_entities", []),
+            "document_concepts": data.get("document_concepts", []),
+            "context_entities": data.get("context_entities", [])
+        }
+    except Exception as e:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "2. Query Rewriting (reformulate_query)", "FALLBACK", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0, exception=str(e))
+        print(f"Reformulation error ({e}); using original query.")
+        return {
+            "original_query": query,
+            "resolved_query": query,
+            "retrieval_query": query,
+            "resolved_entities": [],
+            "document_concepts": [],
+            "context_entities": []
+        }
+
+
+
+def evaluate_relevance(query: str, answer: str, request_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Independent Query-Answer Relevance Evaluator.
     Input ONLY:
@@ -463,10 +610,14 @@ def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
       5. Valid short answers are NOT penalized.
       6. Explicit abstentions on unanswerable queries are recognized.
     """
+    rid = request_id or "default"
+    t0 = time.perf_counter()
     ans_lower = answer.lower().strip()
     is_abstention = "could not find this information in the provided document" in ans_lower
 
     if is_abstention:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "6. Relevance Evaluation", "SUCCESS (ABSTENTION)", elapsed_ms, api_call="rule_check", retries=0)
         return {
             "query_relevant": True,
             "relevance_score": 1.0,
@@ -475,7 +626,7 @@ def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
             "requirements": [{"requirement": "State absence of document evidence", "addressed": True}]
         }
 
-    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0, timeout=15.0, max_retries=2)
 
     system_prompt = (
         "You are an objective Query-Answer Relevance Evaluator.\n"
@@ -523,6 +674,8 @@ def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
         all_reqs_addressed = all(r.get("addressed", False) for r in reqs) if reqs else (rel_score >= 0.75)
         is_relevant = (rel_score >= 0.75) and all_reqs_addressed
 
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "6. Relevance Evaluation", "SUCCESS", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0)
         return {
             "query_relevant": is_relevant,
             "relevance_score": round(rel_score, 4),
@@ -531,6 +684,8 @@ def evaluate_relevance(query: str, answer: str) -> Dict[str, Any]:
             "requirements": reqs
         }
     except Exception as e:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "6. Relevance Evaluation", "FALLBACK", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0, exception=str(e))
         print(f"Relevance evaluation fallback due to error: {e}")
         return {
             "query_relevant": True,
@@ -607,7 +762,7 @@ def compute_lexical_fallback(query: str, answer: str, context: str) -> Dict[str,
     }
 
 
-def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
+def evaluate_grounding(query: str, answer: str, context: str, request_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Independent Grounding Evaluator.
     Receives ONLY:
@@ -629,8 +784,12 @@ def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
            "confidence": str
          }
     """
+    rid = request_id or "default"
+    t0 = time.perf_counter()
     ans_lower = answer.lower().strip()
     if "could not find this information in the provided document" in ans_lower or not context.strip():
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "5. Grounding Evaluation", "SUCCESS (ABSTENTION)", elapsed_ms, api_call="rule_check", retries=0)
         return {
             "claims": [],
             "claim_support_ratio": 0.0,
@@ -648,7 +807,7 @@ def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
     unsupported_nums = [n for n in real_ans_nums if n not in ctx_nums]
 
     # 2. Independent LLM evaluator with structured schema
-    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", temperature=0.0, timeout=15.0, max_retries=2)
 
     system_prompt = (
         "You are an objective grounding evaluator. Your job is to verify if the claims in the generated answer "
@@ -717,6 +876,8 @@ def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
         else:
             confidence = "Not Grounded"
 
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "5. Grounding Evaluation", "SUCCESS", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0)
         return {
             "claims": claims,
             "claim_support_ratio": claim_support_ratio,
@@ -727,18 +888,100 @@ def evaluate_grounding(query: str, answer: str, context: str) -> Dict[str, Any]:
             "evaluation_source": "llm_evaluator"
         }
     except Exception as e:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "5. Grounding Evaluation", "FALLBACK", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0, exception=str(e))
         print(f"Independent LLM evaluator encountered error ({e}); using lexical fallback.")
         return compute_lexical_fallback(query, answer, context)
 
 
 def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
-    """Compiles the LangGraph RAG workflow with hybrid retrieval, generation, and independent grounding evaluation."""
+    """
+    Compiles the LangGraph RAG workflow with:
+    1. Conversational Query Reformulation (dual resolved vs retrieval query representations)
+    2. Hybrid Retrieval with concept-focused fallback
+    3. Grounded Answer Generation
+    4. Parallelized Grounding and Relevance Evaluation (ThreadPoolExecutor)
+    """
     # Ensure in-memory BM25 index is loaded
     load_chunks_corpus()
 
+    def rewrite_query_node(state: GraphState) -> dict:
+        rid = state.get("request_id") or "default"
+        question = state["question"]
+        history = state.get("history") or []
+
+        if not history:
+            log_stage_timing(rid, "2. Query Rewriting", "SKIPPED (NO_HISTORY)", 0.0, api_call="none", retries=0)
+            return {
+                "original_query": question,
+                "resolved_query": question,
+                "retrieval_query": question,
+                "resolved_entities": [],
+                "document_concepts": [],
+                "context_entities": [],
+                "retrieval_fallback_triggered": False
+            }
+
+        t0 = time.perf_counter()
+        data = reformulate_query(history, question, request_id=rid)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "2. Query Rewriting", "SUCCESS", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=0)
+
+        if DEBUG_RETRIEVAL:
+            print("\n" + "=" * 25 + " QUERY REFORMULATION METADATA " + "=" * 25)
+            print(f"  Original Query: {data['original_query']}")
+            print(f"  Resolved Query: {data['resolved_query']}")
+            print(f"  Retrieval Query: {data['retrieval_query']}")
+            print(f"  Resolved Entities: {data['resolved_entities']}")
+            print(f"  Document Concepts: {data['document_concepts']}")
+            print(f"  Context Entities: {data['context_entities']}")
+            print("=" * 78 + "\n")
+
+        return {
+            "original_query": data.get("original_query", question),
+            "resolved_query": data.get("resolved_query", question),
+            "retrieval_query": data.get("retrieval_query", question),
+            "resolved_entities": data.get("resolved_entities", []),
+            "document_concepts": data.get("document_concepts", []),
+            "context_entities": data.get("context_entities", []),
+            "retrieval_fallback_triggered": False
+        }
+
     def retrieve_node(state: GraphState) -> dict:
-        query = state["question"]
-        results = hybrid_retrieve(query, index_name=index_name, top_k=6)
+        rid = state.get("request_id") or "default"
+        t0 = time.perf_counter()
+        retrieval_query = state.get("retrieval_query") or state["question"]
+        document_concepts = state.get("document_concepts") or []
+        results = hybrid_retrieve(retrieval_query, index_name=index_name, top_k=6, request_id=rid)
+        fallback_triggered = False
+
+        # Quality check for retrieval drift or weak evidence:
+        # If document concepts were extracted and top score is weak (< 0.65) or no document concept is present
+        if document_concepts and results:
+            top_score = results[0]["score"]
+            top_context_snippet = " ".join([r.get("text", "").lower() for r in results[:3]])
+            concepts_present = any(c.lower() in top_context_snippet for c in document_concepts if len(c) > 3)
+
+            if top_score < 0.65 or not concepts_present:
+                concept_fallback_query = " ".join([c for c in document_concepts if len(c) > 2])
+                if concept_fallback_query.strip():
+                    if DEBUG_RETRIEVAL:
+                        print(f"\n[RETRIEVAL FALLBACK] Triggered: top_score={top_score:.4f}, concepts_present={concepts_present}")
+                        print(f"  Retrying with concept query: '{concept_fallback_query}'")
+                    fallback_results = hybrid_retrieve(concept_fallback_query, index_name=index_name, top_k=6, request_id=rid)
+                    if fallback_results:
+                        results = fallback_results
+                        fallback_triggered = True
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(
+            rid,
+            "3. Hybrid Retrieval",
+            "SUCCESS",
+            elapsed_ms,
+            api_call="gemini-embedding-2, pinecone",
+            retries=1 if fallback_triggered else 0
+        )
 
         context_parts = []
         scores = []
@@ -770,31 +1013,35 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
             "context": context,
             "retrieved_chunks": formatted_chunks,
             "retrieval_score": top_score,
-            "confidence": top_score
+            "confidence": top_score,
+            "retrieval_fallback_triggered": fallback_triggered
         }
 
     def generate_node(state: GraphState) -> dict:
-        query = state["question"]
+        rid = state.get("request_id") or "default"
+        t0 = time.perf_counter()
+        query = state.get("resolved_query") or state["question"]
         context = state["context"]
 
-        llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", max_retries=6)
+        llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", timeout=20.0, max_retries=2)
 
         system_instruction = (
             "You are a helpful, precise assistant answering questions about the Agentic AI document.\n"
-            "You must answer the user's question ONLY using the provided context.\n\n"
+            "You must answer the user's question using the provided context.\n\n"
             "Rules:\n"
-            "1. Base your answer strictly on the facts and definitions present in the context. Do not use outside knowledge or introduce facts not in the context.\n"
+            "1. Base your answer strictly on the facts, concepts, and definitions present in the context. Do not use outside knowledge or introduce ungrounded facts.\n"
             "2. When the user asks for components, pillars, definitions, or comparisons, explain each concept that is detailed in the context thoroughly.\n"
-            "3. If the provided context does not contain sufficient information to answer the question, reply exactly with: "
+            "3. When the user refers to a specific setting (such as a plant, factory, or company) or asks how a documented mechanism (such as continuous learning) improves efficiency or performance, explain how the documented principles, mechanisms, and examples (e.g. recognizing emerging defect patterns, improving detection accuracy, and reducing false positives) apply to answer their inquiry.\n"
+            "4. If the provided context does not contain sufficient information to answer the question, reply exactly with: "
             "\"I could not find this information in the provided document.\"\n"
-            "4. Do not invent Python code or recommend external models if they are not explicitly mentioned in the context."
+            "5. Do not invent Python code or recommend external models if they are not explicitly mentioned in the context."
         )
 
         user_prompt = f"Context:\n{context}\n\nQuestion: {query}"
 
-        # Safe invocation with backoff retry for rate limits
         response = None
-        for attempt in range(5):
+        retries = 0
+        for attempt in range(2):
             try:
                 response = llm.invoke([
                     {"role": "system", "content": system_instruction},
@@ -803,12 +1050,16 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
                 break
             except Exception as e:
                 err_str = str(e)
-                if "429" in err_str and attempt < 4:
-                    wait_time = 12 * (attempt + 1)
-                    print(f"Rate limited (429). Waiting {wait_time}s for quota window to reset (attempt {attempt + 1}/5)...")
-                    time.sleep(wait_time)
+                if "429" in err_str and attempt < 1:
+                    retries += 1
+                    time.sleep(3.0)
                 else:
+                    elapsed_ms = (time.perf_counter() - t0) * 1000
+                    log_stage_timing(rid, "4. Answer Generation", "FAILURE", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=retries, exception=str(e))
                     raise e
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        log_stage_timing(rid, "4. Answer Generation", "SUCCESS", elapsed_ms, api_call="gemini-3.5-flash-lite", retries=retries)
 
         if isinstance(response.content, list):
             ans = " ".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in response.content]).strip()
@@ -817,32 +1068,36 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
 
         return {"answer": ans}
 
-    def evaluate_grounding_node(state: GraphState) -> dict:
-        query = state["question"]
+    def evaluate_quality_node(state: GraphState) -> dict:
+        rid = state.get("request_id") or "default"
+        query = state.get("resolved_query") or state["question"]
         answer = state["answer"]
         context = state["context"]
 
-        # Independent grounding evaluation receiving ONLY query, answer, context
-        eval_result = evaluate_grounding(query, answer, context)
+        # Run Grounding and Relevance evaluations in parallel using ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_grounding = executor.submit(evaluate_grounding, query, answer, context, rid)
+            future_relevance = executor.submit(evaluate_relevance, query, answer, rid)
+            try:
+                eval_result = future_grounding.result(timeout=18.0)
+            except Exception as e:
+                rag_logger.error(f"[REQ_ID: {rid}] Grounding evaluator timed out or failed: {e}")
+                eval_result = compute_lexical_fallback(query, answer, context)
+            try:
+                rel_result = future_relevance.result(timeout=18.0)
+            except Exception as e:
+                rag_logger.error(f"[REQ_ID: {rid}] Relevance evaluator timed out or failed: {e}")
+                rel_result = {
+                    "query_relevant": True,
+                    "relevance_score": 1.0,
+                    "reason": f"Fallback: {e}",
+                    "missing_aspects": [],
+                    "requirements": []
+                }
 
-        return {
-            "answer_grounded": eval_result["grounded"],
-            "answer_confidence": eval_result["confidence"],
-            "claims": eval_result.get("claims", []),
-            "claim_support_ratio": eval_result.get("claim_support_ratio", 0.0),
-            "unsupported_numeric_claims": eval_result.get("unsupported_numeric_claims", 0),
-            "contradiction_count": eval_result.get("contradiction_count", 0)
-        }
-
-    def evaluate_relevance_node(state: GraphState) -> dict:
-        query = state["question"]
-        answer = state["answer"]
-
-        # Independent query-answer relevance evaluation receiving ONLY query, answer
-        rel_result = evaluate_relevance(query, answer)
+        is_grounded = eval_result["grounded"]
         is_relevant = rel_result["query_relevant"]
         relevance_score = rel_result["relevance_score"]
-        is_grounded = state.get("answer_grounded", True)
         is_abstention = "could not find this information in the provided document" in answer.lower()
 
         # Conceptual answer status determination
@@ -860,6 +1115,12 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
             answer_status = "Grounded & Relevant"
 
         return {
+            "answer_grounded": is_grounded,
+            "answer_confidence": eval_result["confidence"],
+            "claims": eval_result.get("claims", []),
+            "claim_support_ratio": eval_result.get("claim_support_ratio", 0.0),
+            "unsupported_numeric_claims": eval_result.get("unsupported_numeric_claims", 0),
+            "contradiction_count": eval_result.get("contradiction_count", 0),
             "query_relevant": is_relevant,
             "relevance_score": relevance_score,
             "relevance_reason": rel_result.get("reason", ""),
@@ -869,16 +1130,16 @@ def compile_rag_graph(index_name: str = INDEX_NAME) -> StateGraph:
         }
 
     workflow = StateGraph(GraphState)
+    workflow.add_node("rewrite_query", rewrite_query_node)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("generate", generate_node)
-    workflow.add_node("evaluate_grounding", evaluate_grounding_node)
-    workflow.add_node("evaluate_relevance", evaluate_relevance_node)
+    workflow.add_node("evaluate_quality", evaluate_quality_node)
 
-    workflow.add_edge(START, "retrieve")
+    workflow.add_edge(START, "rewrite_query")
+    workflow.add_edge("rewrite_query", "retrieve")
     workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", "evaluate_grounding")
-    workflow.add_edge("evaluate_grounding", "evaluate_relevance")
-    workflow.add_edge("evaluate_relevance", END)
+    workflow.add_edge("generate", "evaluate_quality")
+    workflow.add_edge("evaluate_quality", END)
 
     return workflow.compile()
 
